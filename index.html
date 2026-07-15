@@ -419,7 +419,7 @@ details.cloud-settings[open] summary{margin-bottom:10px;}
   </div>
 </div>
 
-<script>
+<script type="module">
 /* ============================================================
    STATE & STORAGE
    ============================================================ */
@@ -1422,6 +1422,21 @@ window.addDoc = addDoc;
 window.serverTimestamp = serverTimestamp;
 
 console.log("✅ Firebase Connected");
+
+    async function testFirestore() {
+  try {
+    await addDoc(collection(db, "test"), {
+      status: "berhasil",
+      createdAt: serverTimestamp()
+    });
+
+    console.log("✅ Firestore Write Berhasil");
+  } catch (error) {
+    console.error("Firestore Error:", error);
+  }
+}
+
+testFirestore();
 
 </script>
 </body>
