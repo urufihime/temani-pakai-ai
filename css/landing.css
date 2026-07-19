@@ -1,0 +1,199 @@
+/* ============================================================
+   Landing page (index.html)
+   Dipakai bersama css/style.css (tokens, tombol berasal dari sana).
+   ============================================================ */
+
+body.landing{background:var(--paper);}
+
+/* ===== Navbar ===== */
+.landing-nav{
+  background:var(--ink-navy);
+  padding:0 20px;
+}
+.landing-nav-inner{
+  max-width:1080px;
+  margin:0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 0;
+}
+.landing-logo{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:18px;
+  color:var(--cream);
+  letter-spacing:-0.01em;
+  text-decoration:none;
+}
+.landing-nav-links{display:flex;align-items:center;gap:10px;}
+.nav-link{
+  font-family:'Inter',sans-serif;
+  font-weight:600;
+  font-size:13.5px;
+  text-decoration:none;
+  padding:9px 18px;
+  border-radius:4px;
+  transition:opacity .15s ease, background .15s ease;
+}
+.nav-link-ghost{color:var(--cream);}
+.nav-link-ghost:hover{opacity:.8;}
+.nav-link-solid{background:var(--gold);color:var(--ink-navy);}
+.nav-link-solid:hover{background:#d9b23a;}
+
+/* ===== Hero ===== */
+.hero{
+  background:var(--ink-navy);
+  color:var(--cream);
+  padding:64px 20px 90px;
+  text-align:center;
+}
+.hero-inner{max-width:720px;margin:0 auto;}
+.hero .eyebrow{justify-content:center;text-align:center;}
+.hero h1{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:clamp(30px,5vw,48px);
+  line-height:1.15;
+  margin:0 0 20px;
+  letter-spacing:-0.01em;
+}
+.hero p{
+  font-size:16px;
+  color:#C7CEE0;
+  max-width:560px;
+  margin:0 auto 34px;
+  line-height:1.6;
+}
+.hero .btn-primary{
+  background:var(--gold);
+  color:var(--ink-navy);
+  font-size:15px;
+  padding:14px 32px;
+}
+.hero .btn-primary:hover{background:#d9b23a;}
+
+/* ===== Section umum ===== */
+.section{
+  max-width:1000px;
+  margin:0 auto;
+  padding:70px 20px;
+  border-bottom:1px solid var(--paper-line);
+}
+.section:last-of-type{border-bottom:none;}
+.section-head{text-align:center;max-width:600px;margin:0 auto 44px;}
+.section-head .eyebrow{justify-content:center;text-align:center;}
+.section-head h2{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:clamp(24px,3vw,32px);
+  color:var(--ink-navy);
+  margin:0 0 14px;
+}
+.section-head p{
+  font-size:15px;
+  color:#5c5847;
+  line-height:1.6;
+  margin:0;
+}
+
+/* ===== Tentang ===== */
+.about-text{
+  max-width:680px;
+  margin:0 auto;
+  text-align:center;
+  font-size:16px;
+  line-height:1.75;
+  color:#3c3a32;
+}
+
+/* ===== Fitur ===== */
+.feature-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:20px;
+}
+@media(max-width:760px){.feature-grid{grid-template-columns:1fr;}}
+.feature-card{
+  background:#fff;
+  border:1px solid var(--paper-line);
+  border-radius:6px;
+  padding:28px 24px;
+  text-align:center;
+  box-shadow:var(--shadow);
+}
+.feature-icon{font-size:34px;margin-bottom:16px;display:block;}
+.feature-card h3{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:18px;
+  color:var(--ink-navy);
+  margin:0 0 10px;
+}
+.feature-card p{
+  font-size:13.5px;
+  color:#5c5847;
+  line-height:1.6;
+  margin:0;
+}
+
+/* ===== Cara kerja ===== */
+.steps{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:24px;
+}
+@media(max-width:760px){.steps{grid-template-columns:1fr 1fr;}}
+@media(max-width:460px){.steps{grid-template-columns:1fr;}}
+.step{text-align:center;}
+.step-num{
+  width:40px;height:40px;
+  border-radius:50%;
+  background:var(--ink-navy);
+  color:var(--cream);
+  font-family:'IBM Plex Mono',monospace;
+  font-weight:600;
+  font-size:15px;
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 14px;
+}
+.step h3{
+  font-family:'Inter',sans-serif;
+  font-weight:700;
+  font-size:14.5px;
+  color:var(--charcoal);
+  margin:0 0 6px;
+}
+.step p{
+  font-size:12.5px;
+  color:#847d63;
+  margin:0;
+}
+
+/* ===== CTA penutup ===== */
+.cta-section{
+  background:var(--paper-2);
+  text-align:center;
+  padding:60px 20px;
+}
+.cta-section h2{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:26px;
+  color:var(--ink-navy);
+  margin:0 0 12px;
+}
+.cta-section p{
+  color:#5c5847;
+  margin:0 0 26px;
+}
+
+/* ===== Footer ===== */
+.landing-footer{
+  background:var(--ink-navy);
+  color:#9FAAC4;
+  padding:28px 20px;
+  text-align:center;
+  font-size:12.5px;
+}
+.landing-footer p{margin:0;}
