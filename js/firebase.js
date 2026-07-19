@@ -21,4 +21,5 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
+>>>>>>> c0ec796a2f7ebc9cbfedc4a423c5e9bf28aee74f
 console.log("✅ Firebase berhasil dimuat");
