@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daftar | Temani Pakai AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/login.css">
+</head>
+<body class="auth-page">
+
+<div class="auth-card">
+  <div class="auth-brand">
+    <p class="eyebrow">Alat Bantu Mandiri Akademik</p>
+    <h1>Temani Pakai AI</h1>
+  </div>
+  <p class="auth-subtitle">Buat akun untuk mulai memantau pola penggunaan AI-mu.</p>
+
+  <div id="error" class="banner banner-error auth-error" role="alert"></div>
+
+  <form id="registerForm" novalidate>
+    <label for="name">Nama Lengkap</label>
+    <input type="text" id="name" placeholder="Nama kamu" autocomplete="name" required>
+
+    <label for="email">Email</label>
+    <input type="email" id="email" placeholder="nama@email.com" autocomplete="email" required>
+
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="Minimal 6 karakter" autocomplete="new-password" required minlength="6">
+
+    <label for="confirmPassword">Konfirmasi Password</label>
+    <input type="password" id="confirmPassword" placeholder="Ulangi password" autocomplete="new-password" required minlength="6">
+
+    <label class="auth-role-label">Saya adalah</label>
+    <div class="pillset" id="rolePillset" role="radiogroup" aria-label="Peran">
+      <button type="button" class="pill" data-role="mahasiswa" data-active="true" role="radio" aria-checked="true">Mahasiswa</button>
+      <button type="button" class="pill" data-role="dosen" data-active="false" role="radio" aria-checked="false">Dosen</button>
+    </div>
+    <input type="hidden" id="role" value="mahasiswa">
+
+    <button type="submit" id="registerBtn" class="btn btn-primary" style="width:100%;">Daftar</button>
+  </form>
+
+  <div class="auth-footer">
+    Sudah punya akun? <a href="login.html">Masuk</a>
+  </div>
+</div>
+
+<script type="module" src="js/auth.js"></script>
+</body>
+</html>
