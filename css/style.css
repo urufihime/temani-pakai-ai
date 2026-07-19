@@ -1,0 +1,211 @@
+/* ============================================================
+   TEMANI PAKAI AI — DESIGN SYSTEM BERSAMA
+   Diekstrak dari index.html supaya konsisten di semua halaman.
+   Tema: "ledger / koran" — navy, emas, kertas krem, serif Fraunces.
+   ============================================================ */
+
+:root{
+  --ink-navy:#1B2A4A;
+  --ink-navy-2:#243660;
+  --paper:#F7F4EA;
+  --paper-2:#F1ECDD;
+  --paper-line:#D9D0B8;
+  --charcoal:#2B2B28;
+  --cream:#F2EFE6;
+  --gold:#C9A227;
+  --gold-2:#A8871B;
+  --moss:#3F6B4C;
+  --moss-2:#2F5038;
+  --amber:#B8791E;
+  --amber-2:#8F5D14;
+  --debt-red:#A83A32;
+  --debt-red-2:#7E2A24;
+  --shadow: 0 1px 0 rgba(43,43,40,0.06);
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--charcoal);
+  font-family:'Inter',sans-serif;
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--ink-navy);}
+.app{max-width:1040px;margin:0 auto;padding:0 20px 80px;}
+
+/* ===== Eyebrow / kop mono ===== */
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--gold);
+  margin:0 0 10px;
+}
+
+/* ===== Header aplikasi (dipakai di dashboard, assessment, dll) ===== */
+.masthead{
+  background:var(--ink-navy);
+  color:var(--cream);
+  padding:34px 20px 0;
+  margin:0 -20px 0;
+}
+.masthead-inner{max-width:1000px;margin:0 auto;}
+.masthead h1{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:clamp(28px,4vw,40px);
+  margin:0 0 8px;
+  letter-spacing:-0.01em;
+}
+.masthead p{
+  max-width:620px;
+  color:#C7CEE0;
+  margin:0 0 26px;
+  font-size:14.5px;
+}
+.tabs{display:flex;gap:2px;}
+.tab{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12.5px;
+  letter-spacing:.04em;
+  background:transparent;
+  border:none;
+  color:#9FAAC4;
+  padding:13px 22px;
+  cursor:pointer;
+  border-radius:8px 8px 0 0;
+  transition:color .15s ease;
+}
+.tab:hover{color:var(--cream);}
+.tab.active{
+  background:var(--paper);
+  color:var(--ink-navy);
+  font-weight:600;
+}
+.tab:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+
+/* ===== Sheet / card ===== */
+.sheet{
+  background:var(--paper);
+  border:1px solid var(--paper-line);
+  border-top:none;
+  padding:28px;
+}
+.card{
+  background:var(--paper);
+  border:1px solid var(--paper-line);
+  border-radius:3px;
+  padding:22px 24px;
+  margin-bottom:18px;
+  box-shadow:var(--shadow);
+}
+.card-head{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  border-bottom:1px solid var(--paper-line);
+  padding-bottom:12px;
+  margin-bottom:16px;
+}
+.card-head h2{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:19px;
+  margin:0;
+  color:var(--ink-navy);
+}
+.card-head .tag{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  color:#8a8368;
+  letter-spacing:.05em;
+}
+
+/* ===== Form ===== */
+label{
+  display:block;
+  font-size:12.5px;
+  font-weight:600;
+  color:#5c5847;
+  margin:0 0 5px;
+}
+input[type=text],input[type=email],input[type=password],input[type=date],select,textarea{
+  width:100%;
+  font-family:'Inter',sans-serif;
+  font-size:14.5px;
+  padding:10px 12px;
+  border:1px solid var(--paper-line);
+  border-radius:4px;
+  background:#fff;
+  color:var(--charcoal);
+  margin-bottom:14px;
+}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{
+  outline:2px solid var(--gold);
+  outline-offset:1px;
+}
+textarea{resize:vertical;min-height:70px;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:600px){.field-row{grid-template-columns:1fr;}}
+.helptext{font-size:12.5px;color:#847d63;margin-top:-8px;margin-bottom:14px;}
+
+/* ===== Tombol ===== */
+.btn{
+  font-family:'Inter',sans-serif;
+  font-weight:600;
+  font-size:14px;
+  padding:10px 20px;
+  border-radius:4px;
+  border:1px solid transparent;
+  cursor:pointer;
+  transition:transform .08s ease, opacity .15s ease;
+}
+.btn:active{transform:translateY(1px);}
+.btn-primary{background:var(--ink-navy);color:var(--cream);}
+.btn-primary:hover{background:var(--ink-navy-2);}
+.btn-ghost{background:transparent;color:var(--ink-navy);border-color:var(--paper-line);}
+.btn-ghost:hover{background:var(--paper-2);}
+.btn-small{padding:6px 12px;font-size:12.5px;}
+.btn[disabled]{opacity:.45;cursor:not-allowed;}
+
+/* ===== Pill selector (dipakai untuk pilih peran, kategori, dll) ===== */
+.pillset{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.pill{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12.5px;
+  padding:8px 14px;
+  border-radius:20px;
+  border:1.5px solid var(--paper-line);
+  background:#fff;
+  cursor:pointer;
+  color:#5c5847;
+  transition:all .12s ease;
+}
+.pill[data-active="true"]{background:var(--ink-navy);border-color:var(--ink-navy);color:#fff;}
+
+/* ===== Banner pesan (info / error / sukses) ===== */
+.banner{
+  border-radius:4px;
+  padding:16px 18px;
+  margin-bottom:18px;
+  border:1.5px solid;
+  font-size:13.5px;
+}
+.banner-info{background:var(--paper-2);border-color:var(--paper-line);color:#3c3a32;}
+.banner-error{background:#FBE7E5;border-color:var(--debt-red);color:var(--debt-red-2);}
+.banner-success{background:#EEF4EC;border-color:var(--moss);color:var(--moss-2);}
+
+.note{
+  font-size:12px;color:#847d63;background:var(--paper-2);
+  border:1px solid var(--paper-line);border-radius:4px;padding:10px 12px;margin-top:6px;
+}
+.empty{color:#9a927a;font-size:13.5px;font-style:italic;padding:10px 0;}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition:none !important;animation:none !important;}
+}

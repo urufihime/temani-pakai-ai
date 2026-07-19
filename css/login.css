@@ -1,0 +1,64 @@
+/* ============================================================
+   Layout khusus halaman auth (login.html & register.html)
+   Dipakai bersama css/style.css (tokens, tombol, form berasal
+   dari sana). File ini hanya mengatur tata letak kartu auth.
+   ============================================================ */
+
+body.auth-page{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  padding:24px;
+}
+
+.auth-card{
+  width:100%;
+  max-width:400px;
+  background:#fff;
+  border:1px solid var(--paper-line);
+  border-radius:8px;
+  padding:36px 32px;
+  box-shadow:0 12px 32px rgba(27,42,74,.10);
+}
+
+.auth-brand{
+  text-align:center;
+  margin-bottom:26px;
+}
+.auth-brand .eyebrow{text-align:center;}
+.auth-brand h1{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:26px;
+  color:var(--ink-navy);
+  margin:0 0 8px;
+}
+.auth-subtitle{
+  text-align:center;
+  color:#5c5847;
+  font-size:13.5px;
+  margin:0 0 26px;
+}
+
+.auth-error{
+  display:none;
+  font-size:13px;
+  margin-bottom:16px;
+}
+.auth-error.show{display:block;}
+
+.auth-footer{
+  text-align:center;
+  margin-top:20px;
+  font-size:13.5px;
+  color:#5c5847;
+}
+.auth-footer a{
+  color:var(--ink-navy);
+  font-weight:600;
+  text-decoration:none;
+}
+.auth-footer a:hover{text-decoration:underline;}
+
+.auth-role-label{margin-bottom:8px;}
