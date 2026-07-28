@@ -1,0 +1,180 @@
+/* ============================================================
+   Dashboard (mahasiswa & dosen) — dibangun di atas style.css
+   ============================================================ */
+
+/* ===== Header aplikasi (info user + tombol keluar) ===== */
+.app-topbar-inner{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  flex-wrap:wrap;
+}
+.app-user{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.app-user-name{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12.5px;
+  color:#C7CEE0;
+}
+
+/* ===== Setup singkat (kode kelas) ===== */
+.setup-wrap{max-width:480px;margin:40px auto;text-align:left;}
+.setup-wrap .card{margin-bottom:0;}
+
+/* ===== Pill kategori tugas ===== */
+.pill[data-cat="mandiri"][data-active="true"]{background:var(--moss);border-color:var(--moss);color:#fff;}
+.pill[data-cat="sebagian"][data-active="true"]{background:var(--amber);border-color:var(--amber);color:#fff;}
+.pill[data-cat="sangat"][data-active="true"]{background:var(--debt-red);border-color:var(--debt-red);color:#fff;}
+
+/* ===== Banner risiko ===== */
+.risk-banner{
+  border-radius:4px;
+  padding:20px 22px;
+  margin-bottom:20px;
+  border:1.5px solid;
+  position:relative;
+}
+.risk-banner.aman{background:#EEF4EC;border-color:var(--moss);}
+.risk-banner.waspada{background:#FBF2DC;border-color:var(--gold);}
+.risk-banner.tinggi{background:#FCEDDD;border-color:var(--amber);}
+.risk-banner.kritis{background:#FBE7E5;border-color:var(--debt-red);}
+.risk-banner-label{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  font-weight:600;
+  margin-bottom:6px;
+}
+.risk-banner.aman .risk-banner-label{color:var(--moss-2);}
+.risk-banner.waspada .risk-banner-label{color:var(--gold-2);}
+.risk-banner.tinggi .risk-banner-label{color:var(--amber-2);}
+.risk-banner.kritis .risk-banner-label{color:var(--debt-red-2);}
+.risk-banner h3{
+  font-family:'Fraunces',serif;
+  font-size:20px;
+  margin:0 0 8px;
+  color:var(--charcoal);
+}
+.risk-banner p{margin:0;font-size:14px;color:#3c3a32;}
+
+/* ===== Ledger tugas ===== */
+.ledger-row{
+  display:grid;
+  grid-template-columns:auto 1fr auto auto;
+  gap:12px;
+  align-items:center;
+  padding:10px 0;
+  border-bottom:1px dashed var(--paper-line);
+  font-size:13.5px;
+}
+.ledger-row:last-child{border-bottom:none;}
+.ledger-date{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#847d63;white-space:nowrap;}
+.badge{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10.5px;
+  letter-spacing:.03em;
+  padding:3px 9px;
+  border-radius:12px;
+  white-space:nowrap;
+  color:#fff;
+}
+.badge-mandiri{background:var(--moss);}
+.badge-sebagian{background:var(--amber);}
+.badge-sangat{background:var(--debt-red);}
+.ledger-delete{
+  background:none;border:none;color:#a8a08a;cursor:pointer;font-size:15px;line-height:1;
+}
+.ledger-delete:hover{color:var(--debt-red);}
+
+/* ===== Aturan pribadi ===== */
+.rule-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 0;
+  border-bottom:1px dashed var(--paper-line);
+}
+.rule-row:last-child{border-bottom:none;}
+.rule-text{font-size:14px;flex:1;}
+.rule-actions{display:flex;gap:6px;align-items:center;}
+.chip{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  padding:5px 10px;
+  border-radius:14px;
+  border:1px solid var(--paper-line);
+  background:#fff;
+  cursor:pointer;
+  color:#5c5847;
+}
+.chip:hover{background:var(--paper-2);}
+.chip.on-ok{background:var(--moss);color:#fff;border-color:var(--moss);}
+.chip.on-break{background:var(--debt-red);color:#fff;border-color:var(--debt-red);}
+
+/* ===== Jurnal ===== */
+.journal-entry{padding:12px 0;border-bottom:1px dashed var(--paper-line);}
+.journal-entry:last-child{border-bottom:none;}
+.journal-date{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#847d63;margin-bottom:4px;}
+
+/* ===== Tabel dosen ===== */
+table.class-table{width:100%;border-collapse:collapse;font-size:13.5px;}
+table.class-table th{
+  text-align:left;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10.5px;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  color:#847d63;
+  border-bottom:1.5px solid var(--paper-line);
+  padding:8px 10px;
+}
+table.class-table td{
+  padding:11px 10px;
+  border-bottom:1px dashed var(--paper-line);
+  vertical-align:middle;
+}
+table.class-table tr:hover td{background:var(--paper-2);cursor:pointer;}
+.risk-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle;}
+.risk-dot.aman{background:var(--moss);}
+.risk-dot.waspada{background:var(--gold);}
+.risk-dot.tinggi{background:var(--amber);}
+.risk-dot.kritis{background:var(--debt-red);}
+
+.stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px;}
+.stat-box{
+  flex:1;
+  min-width:120px;
+  background:#fff;
+  border:1px solid var(--paper-line);
+  border-radius:4px;
+  padding:14px 16px;
+}
+.stat-box .n{font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:var(--ink-navy);}
+.stat-box .l{font-size:11px;font-family:'IBM Plex Mono',monospace;color:#847d63;text-transform:uppercase;letter-spacing:.04em;}
+
+/* ===== Modal detail mahasiswa ===== */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(27,42,74,.55);
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;z-index:50;
+}
+.modal{
+  background:var(--paper);
+  border-radius:6px;
+  max-width:560px;width:100%;
+  max-height:85vh;overflow-y:auto;
+  padding:26px 28px;
+  border:1px solid var(--paper-line);
+}
+.modal-close{
+  float:right;background:none;border:none;font-size:20px;cursor:pointer;color:#847d63;line-height:1;
+}
+
+/* ===== Nav pintas dashboard mahasiswa (ke history/profile) ===== */
+.dash-shortcuts{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
