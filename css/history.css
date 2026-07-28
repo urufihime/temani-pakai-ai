@@ -1,0 +1,24 @@
+/* ============================================================
+   History (riwayat mahasiswa) — dibangun di atas style.css & dashboard.css
+   ============================================================ */
+
+.week-row{
+  display:grid;
+  grid-template-columns:120px 1fr auto;
+  align-items:center;
+  gap:12px;
+  padding:10px 0;
+  border-bottom:1px dashed var(--paper-line);
+  font-size:13.5px;
+}
+.week-row:last-child{border-bottom:none;}
+.week-label{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#847d63;}
+.week-bar-track{height:8px;background:var(--paper-2);border-radius:4px;overflow:hidden;}
+.week-bar-fill{height:100%;border-radius:4px;}
+.week-bar-fill.aman{background:var(--moss);}
+.week-bar-fill.waspada{background:var(--gold);}
+.week-bar-fill.tinggi{background:var(--amber);}
+.week-bar-fill.kritis{background:var(--debt-red);}
+.week-count{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#5c5847;white-space:nowrap;}
+
+.filter-pillset{margin-bottom:16px;}
