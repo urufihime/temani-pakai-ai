@@ -30,6 +30,18 @@
 .pill[data-cat="sebagian"][data-active="true"]{background:var(--amber);border-color:var(--amber);color:#fff;}
 .pill[data-cat="sangat"][data-active="true"]{background:var(--debt-red);border-color:var(--debt-red);color:#fff;}
 
+/* ===== Legend grafik mingguan ===== */
+.chart-legend{
+  display:flex;
+  gap:16px;
+  flex-wrap:wrap;
+  margin-top:10px;
+  font-size:12px;
+  color:#5c5847;
+}
+.chart-legend span{display:inline-flex;align-items:center;gap:6px;}
+.legend-dot{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
 /* ===== Gauge risiko ===== */
 .gauge-wrap{
   text-align:center;

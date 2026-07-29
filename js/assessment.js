@@ -1,5 +1,6 @@
 import { requireAuth, logout } from "./authGuard.js";
 import { getUserProfile, saveAssessmentResult } from "./firestore.js";
+import { assessmentLevelIndex } from "./utils.js";
 
 const root = document.getElementById("root");
 document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -10,113 +11,58 @@ let currentIndex = 0;
 let answers = [];
 
 /* ============================================================
-   BANK SOAL — 8 pertanyaan, tiap opsi bernilai 1 (mandiri) s/d
-   4 (sangat bergantung pada AI). Skor akhir dirata-rata.
+   BANK SOAL — 7 pertanyaan. Nilai tiap opsi = indeksnya (0-3),
+   sesuai urutan opsi dari yang paling mandiri ke paling
+   bergantung pada AI. Skor total 0-21.
    ============================================================ */
 const QUESTIONS = [
   {
-    q: "Saat menulis draf awal tugas esai/laporan, saya biasanya...",
-    options: [
-      { text: "Menulis sendiri dari nol", value: 1 },
-      { text: "Menulis sendiri, sesekali minta AI mengecek tata bahasa", value: 2 },
-      { text: "Minta AI membuat draf, lalu saya edit ulang", value: 3 },
-      { text: "Minta AI menulis penuh, saya tinggal kumpulkan", value: 4 }
-    ]
+    q: "Seberapa sering kamu menggunakan AI untuk membuat draf pertama tugas kuliah?",
+    options: ["Hampir tidak pernah", "Kadang-kadang", "Sering", "Hampir selalu"]
   },
   {
-    q: "Saat mengerjakan soal hitungan atau logika...",
-    options: [
-      { text: "Selesaikan sendiri langkah demi langkah", value: 1 },
-      { text: "Coba sendiri dulu, baru cek jawaban ke AI kalau ragu", value: 2 },
-      { text: "Tanya AI cara mengerjakannya, lalu saya ikuti langkahnya", value: 3 },
-      { text: "Minta AI langsung memberi jawaban akhir", value: 4 }
-    ]
+    q: "Kalau AI tiba-tiba tidak bisa diakses, seberapa yakin kamu bisa menyelesaikan tugas itu sendiri?",
+    options: ["Sangat yakin", "Cukup yakin", "Kurang yakin", "Tidak yakin sama sekali"]
   },
   {
-    q: "Saat mencari referensi atau sumber bacaan...",
-    options: [
-      { text: "Cari dan baca sendiri dari jurnal/buku", value: 1 },
-      { text: "Cari sendiri, pakai AI untuk merangkum", value: 2 },
-      { text: "Minta AI mencarikan dan merangkumkan sumbernya", value: 3 },
-      { text: "Terima rangkuman dari AI tanpa mengecek sumber aslinya", value: 4 }
-    ]
+    q: "Seberapa sering kamu mengumpulkan tugas tanpa benar-benar memahami isi yang dibuat AI?",
+    options: ["Tidak pernah", "Jarang", "Cukup sering", "Sering"]
   },
   {
-    q: "Saat coding atau debugging program...",
-    options: [
-      { text: "Debug sendiri dengan membaca pesan error & dokumentasi", value: 1 },
-      { text: "Coba sendiri dulu, tanya AI kalau benar-benar buntu", value: 2 },
-      { text: "Minta AI mencari letak errornya", value: 3 },
-      { text: "Minta AI menuliskan ulang kodenya", value: 4 }
-    ]
+    q: "Setelah AI memberi jawaban, seberapa besar kamu mengedit ulang atau memverifikasi isinya dengan pemahamanmu sendiri?",
+    options: ["Selalu saya tulis ulang dengan pemahaman sendiri", "Saya edit cukup banyak", "Saya edit sedikit", "Saya pakai hampir apa adanya"]
   },
   {
-    q: "Saat merevisi tugas sebelum dikumpulkan...",
-    options: [
-      { text: "Baca ulang dan edit sendiri", value: 1 },
-      { text: "Edit sendiri, minta AI mengecek typo/tata bahasa", value: 2 },
-      { text: "Minta AI merapikan gaya bahasa saya", value: 3 },
-      { text: "Minta AI menulis ulang seluruh bagian", value: 4 }
-    ]
+    q: "Apakah kamu merasa cemas atau tidak nyaman saat mengerjakan tugas tanpa membuka AI?",
+    options: ["Tidak sama sekali", "Sedikit", "Cukup cemas", "Sangat cemas"]
   },
   {
-    q: "Saat belajar untuk menghadapi ujian...",
-    options: [
-      { text: "Membuat rangkuman & latihan soal sendiri", value: 1 },
-      { text: "Rangkum sendiri, minta AI buatkan soal latihan tambahan", value: 2 },
-      { text: "Minta AI merangkum seluruh materi", value: 3 },
-      { text: "Hanya membaca rangkuman AI tanpa belajar dari sumber asli", value: 4 }
-    ]
+    q: "Berapa lama rata-rata kamu membuka AI untuk kebutuhan akademik per hari?",
+    options: ["Kurang dari 30 menit", "30–60 menit", "1–3 jam", "Lebih dari 3 jam"]
   },
   {
-    q: "Saat mencoba memahami konsep yang sulit...",
-    options: [
-      { text: "Diskusi dengan teman/dosen atau baca ulang materi", value: 1 },
-      { text: "Coba pahami sendiri dulu, tanya AI untuk penjelasan tambahan", value: 2 },
-      { text: "Langsung tanya AI untuk menjelaskan dari awal", value: 3 },
-      { text: "Minta AI merangkum lalu saya hafalkan tanpa benar-benar paham", value: 4 }
-    ]
-  },
-  {
-    q: "Saat menyusun kerangka/outline tugas besar...",
-    options: [
-      { text: "Susun sendiri sesuai pemahaman saya", value: 1 },
-      { text: "Susun sendiri, minta AI memberi masukan", value: 2 },
-      { text: "Minta AI buatkan kerangkanya, lalu saya sesuaikan", value: 3 },
-      { text: "Pakai kerangka dari AI apa adanya", value: 4 }
-    ]
+    q: "Dalam sebulan terakhir, seberapa sering kamu mencoba mengerjakan tugas kuliah tanpa bantuan AI sama sekali?",
+    options: ["Hampir selalu tanpa AI", "Sering tanpa AI", "Jarang tanpa AI", "Hampir tidak pernah tanpa AI"]
   }
 ];
 
-const RESULT_COPY = {
-  aman: {
-    label: "Aman",
-    title: "Kemandirianmu terjaga",
-    text: "Kamu masih mengandalkan kemampuanmu sendiri dalam sebagian besar proses belajar. Pertahankan kebiasaan ini, dan gunakan AI sebagai alat bantu, bukan pengganti."
+const QUIZ_LEVEL_COPY = {
+  rendah: {
+    label: "Rendah",
+    title: "Ketergantunganmu pada AI masih rendah",
+    text: "Berdasarkan jawabanmu, kamu masih banyak mengandalkan kemampuanmu sendiri. Hasil akhir di dashboard nanti juga mempertimbangkan pola tugasmu minggu berjalan."
   },
-  waspada: {
-    label: "Waspada",
-    title: "Mulai perlu diperhatikan",
-    text: "Ketergantunganmu pada AI mulai terlihat di beberapa aktivitas akademik. Coba mulai kerjakan bagian awal tugas secara mandiri sebelum meminta bantuan AI."
+  sedang: {
+    label: "Sedang",
+    title: "Ketergantunganmu pada AI mulai terlihat",
+    text: "Beberapa jawabanmu menunjukkan kecenderungan mengandalkan AI. Hasil akhir di dashboard akan disesuaikan lagi dengan pola tugasmu minggu berjalan."
   },
   tinggi: {
-    label: "Risiko Tinggi",
-    title: "Ketergantungan mulai menumpuk",
-    text: "Sebagian besar proses belajarmu kini bergantung pada AI. Ini berisiko menumpuk menjadi \"utang kognitif\" — coba kurangi bertahap dimulai dari satu aktivitas."
-  },
-  kritis: {
-    label: "Kritis",
-    title: "Perlu evaluasi segera",
-    text: "Hampir seluruh proses belajarmu diserahkan ke AI. Sebaiknya bicarakan dengan dosen atau mentor akademikmu untuk menyusun strategi belajar yang lebih seimbang."
+    label: "Tinggi",
+    title: "Ketergantunganmu pada AI cukup tinggi",
+    text: "Sebagian besar jawabanmu menunjukkan ketergantungan yang cukup besar pada AI. Hasil akhir di dashboard akan disesuaikan lagi dengan pola tugasmu minggu berjalan."
   }
 };
-
-function levelFromAverage(avg) {
-  if (avg < 1.75) return "aman";
-  if (avg < 2.5) return "waspada";
-  if (avg < 3.25) return "tinggi";
-  return "kritis";
-}
 
 /* ============================================================
    INIT
@@ -148,9 +94,9 @@ function renderQuestion() {
     <h2 class="quiz-question">${q.q}</h2>
 
     <div class="quiz-options">
-      ${q.options.map((opt, i) => `
-        <button type="button" class="quiz-option" data-value="${opt.value}" data-selected="${selected === opt.value}">
-          ${opt.text}
+      ${q.options.map((text, i) => `
+        <button type="button" class="quiz-option" data-value="${i}" data-selected="${selected === i}">
+          ${text}
         </button>
       `).join("")}
     </div>
@@ -189,31 +135,30 @@ function renderQuestion() {
 }
 
 /* ============================================================
-   SELESAI: hitung skor, simpan ke Firestore, tampilkan hasil
+   SELESAI: hitung skor (0-21), simpan ke Firestore, tampilkan hasil
    ============================================================ */
 async function finishQuiz() {
   const nextBtn = document.getElementById("nextBtn");
   nextBtn.disabled = true;
   nextBtn.textContent = "Menyimpan…";
 
-  const sum = answers.reduce((a, b) => a + b, 0);
-  const avg = sum / QUESTIONS.length;
-  const level = levelFromAverage(avg);
-  const score = Math.round(((avg - 1) / 3) * 100); // 0 (mandiri penuh) – 100 (sangat bergantung)
+  const score = answers.reduce((a, b) => a + b, 0);
+  const idx = assessmentLevelIndex(score);
+  const level = ["rendah", "sedang", "tinggi"][idx];
 
   await saveAssessmentResult(CURRENT_USER.uid, { score, level });
   renderResult(level, score);
 }
 
 function renderResult(level, score) {
-  const copy = RESULT_COPY[level];
+  const copy = QUIZ_LEVEL_COPY[level];
   root.innerHTML = `
     <div class="result-wrap">
       <div class="result-badge ${level}">${copy.label}</div>
       <h2>${copy.title}</h2>
       <p>${copy.text}</p>
       <p style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#847d63;margin-bottom:26px;">
-        Skor ketergantungan: ${score}/100
+        Skor kuis: ${score}/21
       </p>
       <a href="dashboard.html" class="btn btn-primary" style="text-decoration:none;display:inline-block;">Lanjut ke Dashboard</a>
     </div>
@@ -224,12 +169,12 @@ function renderResult(level, score) {
    Sudah pernah isi asesmen — tampilkan hasil lama + opsi ulang
    ============================================================ */
 function renderExistingResult() {
-  const copy = RESULT_COPY[PROFILE.assessmentLevel] || RESULT_COPY.aman;
+  const copy = QUIZ_LEVEL_COPY[PROFILE.assessmentLevel] || QUIZ_LEVEL_COPY.rendah;
   root.innerHTML = `
     <div class="result-wrap">
       <div class="result-badge ${PROFILE.assessmentLevel}">${copy.label}</div>
       <h2>Kamu sudah pernah mengisi asesmen ini</h2>
-      <p>Hasil terakhirmu: <strong>${copy.title}</strong> (skor ${PROFILE.assessmentScore}/100).</p>
+      <p>Hasil terakhirmu: <strong>${copy.title}</strong> (skor ${PROFILE.assessmentScore}/21).</p>
       <div style="display:flex;gap:10px;justify-content:center;">
         <a href="dashboard.html" class="btn btn-primary" style="text-decoration:none;">Ke Dashboard</a>
         <button class="btn btn-ghost" id="retakeBtn">Isi Ulang</button>

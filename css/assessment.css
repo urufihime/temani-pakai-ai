@@ -66,10 +66,9 @@
   font-weight:600;
   color:#fff;
 }
-.result-badge.aman{background:var(--moss);}
-.result-badge.waspada{background:var(--gold);}
+.result-badge.rendah{background:var(--moss);}
+.result-badge.sedang{background:var(--gold);}
 .result-badge.tinggi{background:var(--amber);}
-.result-badge.kritis{background:var(--debt-red);}
 .result-wrap h2{
   font-family:'Fraunces',serif;
   font-size:24px;

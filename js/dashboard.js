@@ -15,7 +15,7 @@ import {
   getStudentsByKelas,
   getRecentTasks
 } from "./firestore.js";
-import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG } from "./utils.js";
+import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG } from "./utils.js";
 
 const root = document.getElementById("root");
 const mastheadTitle = document.getElementById("mastheadTitle");
@@ -144,9 +144,8 @@ async function loadMahasiswaData() {
 }
 
 function renderMahasiswaDashboard() {
-  const level = PROFILE.assessmentLevel || "aman";
-  const score = PROFILE.assessmentScore || 0;
-  const copy = RISK_COPY[level];
+  const risk = computeCombinedRisk(PROFILE.assessmentScore, TASKS);
+  const copy = RISK_COPY[risk.level];
 
   root.innerHTML = `
     <div class="dash-shortcuts">
@@ -154,12 +153,17 @@ function renderMahasiswaDashboard() {
       <a href="profile.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Profil</a>
     </div>
 
-    <div class="risk-banner ${level}">
-      <div class="gauge-wrap">${buildGaugeSVG(score / 100)}</div>
-      <p class="risk-banner-label">${copy.label} · Skor Neraca Kemandirian: ${score}/100</p>
+    <div class="risk-banner ${risk.level}">
+      <div class="gauge-wrap">${buildGaugeSVG(risk.continuous / 3)}</div>
+      <p class="risk-banner-label">${copy.label} · Skor kuis ${PROFILE.assessmentScore}/21 · ${risk.veryCount}/${risk.weekTotal} tugas minggu ini "Sangat AI"</p>
       <h3>${copy.title}</h3>
       <p>${copy.text}</p>
       <a href="assessment.html" class="btn btn-ghost btn-small" style="text-decoration:none;display:inline-block;margin-top:10px;">Isi Ulang Asesmen</a>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Neraca Minggu Ini</h2><span class="tag">7 hari terakhir</span></div>
+      ${buildWeekChartSVG(TASKS)}
     </div>
 
     <div class="card">
@@ -318,17 +322,16 @@ async function loadDosenData() {
 function renderDosenDashboard() {
   const withRisk = CLASS_STUDENTS.map((s) => ({
     ...s,
-    level: s.assessmentDone ? s.assessmentLevel : null,
-    score: s.assessmentDone ? s.assessmentScore : null
+    risk: s.assessmentDone ? computeCombinedRisk(s.assessmentScore, STUDENT_TASKS[s.uid] || []) : null
   })).sort((a, b) => {
     const order = { kritis: 0, tinggi: 1, waspada: 2, aman: 3 };
-    const oa = a.level ? order[a.level] : 4;
-    const ob = b.level ? order[b.level] : 4;
+    const oa = a.risk ? order[a.risk.level] : 4;
+    const ob = b.risk ? order[b.risk.level] : 4;
     return oa - ob;
   });
 
   const count = { aman: 0, waspada: 0, tinggi: 0, kritis: 0, belum: 0 };
-  withRisk.forEach((s) => (s.level ? count[s.level]++ : count.belum++));
+  withRisk.forEach((s) => (s.risk ? count[s.risk.level]++ : count.belum++));
 
   root.innerHTML = `
     <div class="card-head" style="border-bottom:none;margin-bottom:14px;">
@@ -355,8 +358,8 @@ function renderDosenDashboard() {
               <tr data-uid="${s.uid}">
                 <td>${escapeHtml(s.name)}</td>
                 <td>${s.assessmentDone ? "Sudah mengisi" : "Belum mengisi"}</td>
-                <td>${s.level
-                  ? `<span class="risk-dot ${s.level}"></span>${RISK_COPY[s.level].label}`
+                <td>${s.risk
+                  ? `<span class="risk-dot ${s.risk.level}"></span>${RISK_COPY[s.risk.level].label}`
                   : `<span style="color:#9a927a;">—</span>`}</td>
               </tr>
             `).join("")}
@@ -378,13 +381,13 @@ function openStudentModal(uid, withRisk) {
   if (!s) return;
   const tasks = STUDENT_TASKS[uid] || [];
 
-  const banner = s.level
+  const banner = s.risk
     ? `
-      <div class="risk-banner ${s.level}" style="margin-bottom:18px;">
-        <div class="gauge-wrap">${buildGaugeSVG(s.score / 100)}</div>
-        <p class="risk-banner-label">${RISK_COPY[s.level].label} · Skor Neraca Kemandirian: ${s.score}/100</p>
-        <h3 style="font-size:17px;">${RISK_COPY[s.level].title}</h3>
-        <p>${RISK_COPY[s.level].text}</p>
+      <div class="risk-banner ${s.risk.level}" style="margin-bottom:18px;">
+        <div class="gauge-wrap">${buildGaugeSVG(s.risk.continuous / 3)}</div>
+        <p class="risk-banner-label">${RISK_COPY[s.risk.level].label} · Skor kuis ${s.assessmentScore}/21 · ${s.risk.veryCount}/${s.risk.weekTotal} tugas minggu ini "Sangat AI"</p>
+        <h3 style="font-size:17px;">${RISK_COPY[s.risk.level].title}</h3>
+        <p>${RISK_COPY[s.risk.level].text}</p>
       </div>
     `
     : `<div class="card" style="margin-bottom:18px;"><p class="empty">Mahasiswa ini belum mengisi Neraca Kemandirian.</p></div>`;

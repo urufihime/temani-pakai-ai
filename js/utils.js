@@ -54,11 +54,97 @@ export const RISK_COPY = {
   kritis: { label: "Kritis", title: "Perlu evaluasi segera", text: "Sebagian besar tugasmu sangat bergantung pada AI. Coba evaluasi ulang cara belajarmu." }
 };
 
+/**
+ * Level dasar dari skor kuis mentah (0-21, 7 pertanyaan x nilai 0-3).
+ */
+export function assessmentLevelIndex(score) {
+  if (score <= 7) return 0; // rendah
+  if (score <= 14) return 1; // sedang
+  return 2; // tinggi
+}
+
+/**
+ * Mesin penilaian gabungan: skor kuis (Neraca Kemandirian) digabung
+ * dengan pola tugas 7 hari terakhir untuk menghasilkan level akhir
+ * (aman/waspada/tinggi/kritis) yang ditampilkan di gauge dashboard.
+ */
+export function computeCombinedRisk(assessmentScore, tasks) {
+  const base = assessmentLevelIndex(assessmentScore || 0);
+  const cutoffStr = daysAgoStr(7);
+  const week = (tasks || []).filter((t) => t.date >= cutoffStr);
+  const veryCount = week.filter((t) => t.category === "sangat").length;
+  const ratio = week.length > 0 ? veryCount / week.length : 0;
+  const today = todayStr();
+  const todayVery = (tasks || []).filter((t) => t.date === today && t.category === "sangat").length;
+
+  let add = 0;
+  if (ratio > 0.75 || todayVery >= 5) add = 2;
+  else if (ratio > 0.5 || todayVery >= 3) add = 1;
+
+  const scoreIdx = Math.min(base + add, 3);
+  const levels = ["aman", "waspada", "tinggi", "kritis"];
+  const continuous = Math.min(3, scoreIdx + ratio * 0.9);
+
+  return { level: levels[scoreIdx], ratio, veryCount, weekTotal: week.length, todayVery, scoreIdx, continuous };
+}
+
 export const CATEGORY_LABEL = {
   mandiri: "Mandiri",
   sebagian: "Sebagian",
   sangat: "Sangat AI"
 };
+
+/**
+ * Grafik batang bertumpuk (stacked bar) 7 hari terakhir,
+ * menunjukkan jumlah tugas per kategori tiap hari.
+ */
+export function buildWeekChartSVG(tasks) {
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  const counts = days.map((day) => {
+    const dayTasks = tasks.filter((t) => t.date === day);
+    return {
+      mandiri: dayTasks.filter((t) => t.category === "mandiri").length,
+      sebagian: dayTasks.filter((t) => t.category === "sebagian").length,
+      sangat: dayTasks.filter((t) => t.category === "sangat").length
+    };
+  });
+  const maxV = Math.max(1, ...counts.map((c) => c.mandiri + c.sebagian + c.sangat));
+  const barW = 34, gap = 14, chartH = 110;
+  const svgW = days.length * (barW + gap);
+  let bars = "";
+  counts.forEach((c, i) => {
+    const x = i * (barW + gap);
+    let y = chartH;
+    const segs = [
+      ["mandiri", c.mandiri, "var(--moss)"],
+      ["sebagian", c.sebagian, "var(--amber)"],
+      ["sangat", c.sangat, "var(--debt-red)"]
+    ];
+    segs.forEach(([, val, color]) => {
+      const h = (val / maxV) * chartH;
+      y -= h;
+      if (val > 0) bars += `<rect x="${x}" y="${y.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" fill="${color}" rx="1.5"/>`;
+    });
+    const label = days[i].slice(5).replace("-", "/");
+    bars += `<text x="${x + barW / 2}" y="${chartH + 16}" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="#847d63" text-anchor="middle">${label}</text>`;
+  });
+
+  return `
+    <svg viewBox="0 0 ${svgW} ${chartH + 26}" width="100%" style="max-width:${svgW}px;margin-top:16px;">
+      ${bars}
+    </svg>
+    <div class="chart-legend">
+      <span><span class="legend-dot" style="background:var(--moss);"></span>Mandiri</span>
+      <span><span class="legend-dot" style="background:var(--amber);"></span>Dibantu Sebagian</span>
+      <span><span class="legend-dot" style="background:var(--debt-red);"></span>Sangat Bergantung</span>
+    </div>
+  `;
+}
 
 /**
  * Bangun SVG gauge/meteran setengah lingkaran untuk menampilkan
