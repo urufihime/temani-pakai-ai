@@ -15,7 +15,7 @@ import {
   getStudentsByKelas,
   getRecentTasks
 } from "./firestore.js";
-import { escapeHtml, todayStr, computeRisk, RISK_COPY } from "./utils.js";
+import { escapeHtml, todayStr, computeRisk, RISK_COPY, buildGaugeSVG } from "./utils.js";
 
 const root = document.getElementById("root");
 const mastheadTitle = document.getElementById("mastheadTitle");
@@ -154,6 +154,7 @@ function renderMahasiswaDashboard() {
     </div>
 
     <div class="risk-banner ${risk.level}">
+      <div class="gauge-wrap">${buildGaugeSVG(risk.ratio)}</div>
       <p class="risk-banner-label">${copy.label} · ${risk.weekTotal} tugas 7 hari terakhir</p>
       <h3>${copy.title}</h3>
       <p>${copy.text}</p>
@@ -379,6 +380,7 @@ function openStudentModal(uid, withRisk) {
         <p style="color:#5c5847;font-size:13px;margin:0 0 18px;">${escapeHtml(s.email)}</p>
 
         <div class="risk-banner ${s.risk.level}" style="margin-bottom:18px;">
+          <div class="gauge-wrap">${buildGaugeSVG(s.risk.ratio)}</div>
           <p class="risk-banner-label">${copy.label} · ${s.risk.weekTotal} tugas 7 hari terakhir</p>
           <h3 style="font-size:17px;">${copy.title}</h3>
           <p>${copy.text}</p>

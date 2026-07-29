@@ -59,3 +59,27 @@ export const CATEGORY_LABEL = {
   sebagian: "Sebagian",
   sangat: "Sangat AI"
 };
+
+/**
+ * Bangun SVG gauge/meteran setengah lingkaran untuk menampilkan
+ * tingkat risiko ketergantungan AI. ratio: 0 (mandiri penuh) - 1 (sangat bergantung).
+ */
+export function buildGaugeSVG(ratio) {
+  const r = ratio == null || isNaN(ratio) ? 0 : Math.max(0, Math.min(1, ratio));
+  const thetaDeg = 180 - r * 180;
+  const thetaRad = (thetaDeg * Math.PI) / 180;
+  const cx = 150, cy = 150, needleLen = 92;
+  const nx = (cx + needleLen * Math.cos(thetaRad)).toFixed(1);
+  const ny = (cy - needleLen * Math.sin(thetaRad)).toFixed(1);
+
+  return `
+    <svg viewBox="0 0 300 178" class="gauge-svg" role="img" aria-label="Meteran tingkat risiko">
+      <path d="M 40 150 A 110 110 0 0 1 72.22 72.22" fill="none" stroke="var(--moss)" stroke-width="22" stroke-linecap="round"/>
+      <path d="M 72.22 72.22 A 110 110 0 0 1 150 40" fill="none" stroke="var(--gold)" stroke-width="22" stroke-linecap="round"/>
+      <path d="M 150 40 A 110 110 0 0 1 227.78 72.22" fill="none" stroke="var(--amber)" stroke-width="22" stroke-linecap="round"/>
+      <path d="M 227.78 72.22 A 110 110 0 0 1 260 150" fill="none" stroke="var(--debt-red)" stroke-width="22" stroke-linecap="round"/>
+      <line x1="150" y1="150" x2="${nx}" y2="${ny}" stroke="var(--ink-navy)" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="150" cy="150" r="9" fill="var(--ink-navy)"/>
+    </svg>
+  `;
+}
