@@ -15,7 +15,7 @@ import {
   getStudentsByKelas,
   getRecentTasks
 } from "./firestore.js";
-import { escapeHtml, todayStr, computeRisk, RISK_COPY, buildGaugeSVG } from "./utils.js";
+import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG } from "./utils.js";
 
 const root = document.getElementById("root");
 const mastheadTitle = document.getElementById("mastheadTitle");
@@ -318,14 +318,17 @@ async function loadDosenData() {
 function renderDosenDashboard() {
   const withRisk = CLASS_STUDENTS.map((s) => ({
     ...s,
-    risk: computeRisk(STUDENT_TASKS[s.uid] || [])
+    level: s.assessmentDone ? s.assessmentLevel : null,
+    score: s.assessmentDone ? s.assessmentScore : null
   })).sort((a, b) => {
     const order = { kritis: 0, tinggi: 1, waspada: 2, aman: 3 };
-    return order[a.risk.level] - order[b.risk.level];
+    const oa = a.level ? order[a.level] : 4;
+    const ob = b.level ? order[b.level] : 4;
+    return oa - ob;
   });
 
-  const count = { aman: 0, waspada: 0, tinggi: 0, kritis: 0 };
-  withRisk.forEach((s) => count[s.risk.level]++);
+  const count = { aman: 0, waspada: 0, tinggi: 0, kritis: 0, belum: 0 };
+  withRisk.forEach((s) => (s.level ? count[s.level]++ : count.belum++));
 
   root.innerHTML = `
     <div class="card-head" style="border-bottom:none;margin-bottom:14px;">
@@ -338,6 +341,7 @@ function renderDosenDashboard() {
       <div class="stat-box"><div class="n">${count.waspada}</div><div class="l">Waspada</div></div>
       <div class="stat-box"><div class="n">${count.tinggi}</div><div class="l">Tinggi</div></div>
       <div class="stat-box"><div class="n">${count.kritis}</div><div class="l">Kritis</div></div>
+      <div class="stat-box"><div class="n">${count.belum}</div><div class="l">Belum Isi</div></div>
     </div>
 
     <div class="card">
@@ -345,13 +349,15 @@ function renderDosenDashboard() {
         <p class="empty">Belum ada mahasiswa yang mendaftar dengan kode kelas ini.</p>
       ` : `
         <table class="class-table">
-          <thead><tr><th>Nama</th><th>Status Asesmen</th><th>Risiko (7 hari)</th></tr></thead>
+          <thead><tr><th>Nama</th><th>Status Asesmen</th><th>Neraca Kemandirian</th></tr></thead>
           <tbody>
             ${withRisk.map((s) => `
               <tr data-uid="${s.uid}">
                 <td>${escapeHtml(s.name)}</td>
                 <td>${s.assessmentDone ? "Sudah mengisi" : "Belum mengisi"}</td>
-                <td><span class="risk-dot ${s.risk.level}"></span>${RISK_COPY[s.risk.level].label}</td>
+                <td>${s.level
+                  ? `<span class="risk-dot ${s.level}"></span>${RISK_COPY[s.level].label}`
+                  : `<span style="color:#9a927a;">—</span>`}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -370,8 +376,18 @@ function renderDosenDashboard() {
 function openStudentModal(uid, withRisk) {
   const s = withRisk.find((x) => x.uid === uid);
   if (!s) return;
-  const copy = RISK_COPY[s.risk.level];
   const tasks = STUDENT_TASKS[uid] || [];
+
+  const banner = s.level
+    ? `
+      <div class="risk-banner ${s.level}" style="margin-bottom:18px;">
+        <div class="gauge-wrap">${buildGaugeSVG(s.score / 100)}</div>
+        <p class="risk-banner-label">${RISK_COPY[s.level].label} · Skor Neraca Kemandirian: ${s.score}/100</p>
+        <h3 style="font-size:17px;">${RISK_COPY[s.level].title}</h3>
+        <p>${RISK_COPY[s.level].text}</p>
+      </div>
+    `
+    : `<div class="card" style="margin-bottom:18px;"><p class="empty">Mahasiswa ini belum mengisi Neraca Kemandirian.</p></div>`;
 
   document.getElementById("modalHost").innerHTML = `
     <div class="modal-overlay" id="modalOverlay">
@@ -381,12 +397,7 @@ function openStudentModal(uid, withRisk) {
         <h2 style="font-family:'Fraunces',serif;margin:0 0 4px;">${escapeHtml(s.name)}</h2>
         <p style="color:#5c5847;font-size:13px;margin:0 0 18px;">${escapeHtml(s.email)}</p>
 
-        <div class="risk-banner ${s.risk.level}" style="margin-bottom:18px;">
-          <div class="gauge-wrap">${buildGaugeSVG(s.risk.ratio)}</div>
-          <p class="risk-banner-label">${copy.label} · ${s.risk.weekTotal} tugas 7 hari terakhir</p>
-          <h3 style="font-size:17px;">${copy.title}</h3>
-          <p>${copy.text}</p>
-        </div>
+        ${banner}
 
         <h3 style="font-size:14px;margin:0 0 10px;">Tugas 7 Hari Terakhir</h3>
         ${tasks.length === 0 ? `<p class="empty">Belum ada tugas tercatat.</p>` : tasks.map((t) => `
