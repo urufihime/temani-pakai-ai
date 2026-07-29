@@ -1,5 +1,6 @@
 import { requireAuth, logout } from "./authGuard.js";
 import { getUserProfile, saveAssessmentResult } from "./firestore.js";
+import { buildGaugeSVG } from "./utils.js";
 
 const root = document.getElementById("root");
 document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -209,13 +210,13 @@ function renderResult(level, score) {
   const copy = RESULT_COPY[level];
   root.innerHTML = `
     <div class="result-wrap">
-      <div class="result-badge ${level}">${copy.label}</div>
-      <h2>${copy.title}</h2>
-      <p>${copy.text}</p>
-      <p style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#847d63;margin-bottom:26px;">
-        Skor ketergantungan: ${score}/100
-      </p>
-      <a href="dashboard.html" class="btn btn-primary" style="text-decoration:none;display:inline-block;">Lanjut ke Dashboard</a>
+      <div class="risk-banner ${level}" style="text-align:left;">
+        <div class="gauge-wrap">${buildGaugeSVG(score / 100)}</div>
+        <p class="risk-banner-label">${copy.label} · skor ${score}/100</p>
+        <h3>${copy.title}</h3>
+        <p>${copy.text}</p>
+      </div>
+      <a href="dashboard.html" class="btn btn-primary" style="text-decoration:none;display:inline-block;margin-top:22px;">Lanjut ke Dashboard</a>
     </div>
   `;
 }
@@ -227,10 +228,13 @@ function renderExistingResult() {
   const copy = RESULT_COPY[PROFILE.assessmentLevel] || RESULT_COPY.aman;
   root.innerHTML = `
     <div class="result-wrap">
-      <div class="result-badge ${PROFILE.assessmentLevel}">${copy.label}</div>
-      <h2>Kamu sudah pernah mengisi asesmen ini</h2>
-      <p>Hasil terakhirmu: <strong>${copy.title}</strong> (skor ${PROFILE.assessmentScore}/100).</p>
-      <div style="display:flex;gap:10px;justify-content:center;">
+      <div class="risk-banner ${PROFILE.assessmentLevel}" style="text-align:left;">
+        <div class="gauge-wrap">${buildGaugeSVG(PROFILE.assessmentScore / 100)}</div>
+        <p class="risk-banner-label">${copy.label} · skor ${PROFILE.assessmentScore}/100</p>
+        <h3>${copy.title}</h3>
+        <p>Ini hasil terakhirmu. ${copy.text}</p>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:22px;">
         <a href="dashboard.html" class="btn btn-primary" style="text-decoration:none;">Ke Dashboard</a>
         <button class="btn btn-ghost" id="retakeBtn">Isi Ulang</button>
       </div>
