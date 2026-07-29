@@ -144,8 +144,9 @@ async function loadMahasiswaData() {
 }
 
 function renderMahasiswaDashboard() {
-  const risk = computeRisk(TASKS);
-  const copy = RISK_COPY[risk.level];
+  const level = PROFILE.assessmentLevel || "aman";
+  const score = PROFILE.assessmentScore || 0;
+  const copy = RISK_COPY[level];
 
   root.innerHTML = `
     <div class="dash-shortcuts">
@@ -153,11 +154,12 @@ function renderMahasiswaDashboard() {
       <a href="profile.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Profil</a>
     </div>
 
-    <div class="risk-banner ${risk.level}">
-      <div class="gauge-wrap">${buildGaugeSVG(risk.ratio)}</div>
-      <p class="risk-banner-label">${copy.label} · ${risk.weekTotal} tugas 7 hari terakhir</p>
+    <div class="risk-banner ${level}">
+      <div class="gauge-wrap">${buildGaugeSVG(score / 100)}</div>
+      <p class="risk-banner-label">${copy.label} · Skor Neraca Kemandirian: ${score}/100</p>
       <h3>${copy.title}</h3>
       <p>${copy.text}</p>
+      <a href="assessment.html" class="btn btn-ghost btn-small" style="text-decoration:none;display:inline-block;margin-top:10px;">Isi Ulang Asesmen</a>
     </div>
 
     <div class="card">
