@@ -48,10 +48,45 @@ export function computeRisk(tasks, days = 7) {
 }
 
 export const RISK_COPY = {
-  aman: { label: "Aman", title: "Kemandirianmu terjaga", text: "Sebagian besar tugas kamu kerjakan sendiri. Pertahankan." },
-  waspada: { label: "Waspada", title: "Mulai perlu diperhatikan", text: "Ada beberapa tugas yang sangat bergantung pada AI. Coba kurangi sedikit demi sedikit." },
-  tinggi: { label: "Risiko Tinggi", title: "Ketergantungan mulai menumpuk", text: "Cukup banyak tugas dikerjakan sangat bergantung pada AI. Waspadai \"utang kognitif\" yang menumpuk." },
-  kritis: { label: "Kritis", title: "Perlu evaluasi segera", text: "Sebagian besar tugasmu sangat bergantung pada AI. Coba evaluasi ulang cara belajarmu." }
+  aman: {
+    label: "Status: Aman",
+    title: "Pola penggunaan AI-mu masih sehat",
+    text: "Belum ada tanda ketergantungan berlebih minggu ini. Terus jaga kebiasaan mengerjakan sebagian besar tugas secara mandiri.",
+    impacts: [],
+    action: "Tidak ada tindakan mendesak — pertahankan proporsi tugas mandiri yang sudah baik."
+  },
+  waspada: {
+    label: "Peringatan Dini: Waspada",
+    title: "Mulai ada kecenderungan mengandalkan AI",
+    text: "Beberapa tugas terakhir dikerjakan dengan bantuan AI yang cukup besar. Ini belum berbahaya, tapi pola ini bisa berkembang jika dibiarkan.",
+    impacts: [
+      "Otak mulai terbiasa \"melempar\" langkah berpikir awal ke AI, sehingga proses menyusun ide sendiri jadi jarang dilatih.",
+      "Ini adalah tahap awal dari cognitive debt — semacam utang kognitif yang muncul ketika proses berpikir didelegasikan terus-menerus alih-alih dilatih."
+    ],
+    action: "Coba kerjakan draf berikutnya tanpa AI dulu, baru gunakan AI untuk mengecek atau menyempurnakan di akhir."
+  },
+  tinggi: {
+    label: "Peringatan Dini: Tinggi",
+    title: "Ketergantungan pada AI meningkat nyata",
+    text: "Sebagian besar tugasmu minggu ini sangat bergantung pada AI. Pada titik ini, dampaknya mulai terasa pada kemampuan berpikir mandiri.",
+    impacts: [
+      "Kemampuan berpikir kritis dan memecahkan masalah cenderung menurun karena jarang dilatih tanpa bantuan.",
+      "Cognitive debt menumpuk — semakin banyak proses berpikir yang \"dipinjam\" dari AI, semakin sulit menariknya kembali saat dibutuhkan (mis. saat ujian).",
+      "Retensi memori terhadap materi yang dikerjakan bisa melemah karena otak tidak benar-benar memproses informasinya sendiri."
+    ],
+    action: "Pilih satu tugas kecil minggu ini untuk dikerjakan 100% mandiri, lalu bandingkan hasilnya dengan biasanya. Pertimbangkan mendiskusikan pola ini dengan dosen atau tutor."
+  },
+  kritis: {
+    label: "Peringatan Dini: Kritis",
+    title: "Tanda ketergantungan berat pada AI",
+    text: "Pola penggunaan AI-mu sudah berada di level yang berisiko tinggi terhadap kemandirian akademik.",
+    impacts: [
+      "Cognitive debt pada level ini bisa membuat kemampuan bernalar mandiri terasa \"tumpul\" ketika AI tidak tersedia, misalnya saat ujian tulis atau presentasi langsung.",
+      "Kepercayaan diri akademik menurun karena terbiasa merasa \"tidak mampu\" tanpa bantuan AI.",
+      "Pemahaman konsep jangka panjang berisiko dangkal, karena materi lebih banyak diproses oleh AI daripada oleh dirimu sendiri."
+    ],
+    action: "Ini saat yang tepat untuk berhenti sejenak dan mengevaluasi kebiasaanmu. Pertimbangkan berkonsultasi dengan dosen pembimbing akademik atau layanan konseling kampus untuk menyusun strategi belajar ulang."
+  }
 };
 
 /**
@@ -166,6 +201,8 @@ export function buildGaugeSVG(ratio) {
       <path d="M 227.78 72.22 A 110 110 0 0 1 260 150" fill="none" stroke="var(--debt-red)" stroke-width="22" stroke-linecap="round"/>
       <line x1="150" y1="150" x2="${nx}" y2="${ny}" stroke="var(--ink-navy)" stroke-width="4" stroke-linecap="round"/>
       <circle cx="150" cy="150" r="9" fill="var(--ink-navy)"/>
+      <text x="14" y="172" font-size="12" font-family="IBM Plex Mono, monospace" fill="#847d63">Aman</text>
+      <text x="228" y="172" font-size="12" font-family="IBM Plex Mono, monospace" fill="#847d63">Kritis</text>
     </svg>
   `;
 }

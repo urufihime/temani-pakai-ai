@@ -153,12 +153,18 @@ function renderMahasiswaDashboard() {
       <a href="profile.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Profil</a>
     </div>
 
-    <div class="risk-banner ${risk.level}">
+    <div class="card">
+      <div class="card-head"><h2>Peringatan Dini</h2><span class="tag">Gauge ketergantungan</span></div>
       <div class="gauge-wrap">${buildGaugeSVG(risk.continuous / 3)}</div>
-      <p class="risk-banner-label">${copy.label} · Skor kuis ${PROFILE.assessmentScore}/21 · ${risk.veryCount}/${risk.weekTotal} tugas minggu ini "Sangat AI"</p>
-      <h3>${copy.title}</h3>
-      <p>${copy.text}</p>
-      <a href="assessment.html" class="btn btn-ghost btn-small" style="text-decoration:none;display:inline-block;margin-top:10px;">Isi Ulang Asesmen</a>
+      <p class="gauge-level-line">Level saat ini: <strong>${copy.label.replace(/^.*: /, "") || copy.label}</strong> · ${risk.veryCount}/${risk.weekTotal} tugas minggu ini "Sangat Bergantung"</p>
+      <div class="risk-banner ${risk.level}">
+        <p class="risk-banner-label">${copy.label}</p>
+        <h3>${copy.title}</h3>
+        <p>${copy.text}</p>
+        ${copy.impacts && copy.impacts.length ? `<ul>${copy.impacts.map((i) => `<li>${i}</li>`).join("")}</ul>` : ""}
+        <div class="action-box">${copy.action}</div>
+      </div>
+      <a href="assessment.html" class="btn btn-ghost btn-small" style="text-decoration:none;display:inline-block;margin-top:14px;">Isi Ulang Asesmen</a>
     </div>
 
     <div class="card">
@@ -383,11 +389,14 @@ function openStudentModal(uid, withRisk) {
 
   const banner = s.risk
     ? `
+      <div class="gauge-wrap">${buildGaugeSVG(s.risk.continuous / 3)}</div>
+      <p class="gauge-level-line">Level saat ini: <strong>${RISK_COPY[s.risk.level].label.replace(/^.*: /, "")}</strong> · ${s.risk.veryCount}/${s.risk.weekTotal} tugas minggu ini "Sangat Bergantung"</p>
       <div class="risk-banner ${s.risk.level}" style="margin-bottom:18px;">
-        <div class="gauge-wrap">${buildGaugeSVG(s.risk.continuous / 3)}</div>
-        <p class="risk-banner-label">${RISK_COPY[s.risk.level].label} · Skor kuis ${s.assessmentScore}/21 · ${s.risk.veryCount}/${s.risk.weekTotal} tugas minggu ini "Sangat AI"</p>
+        <p class="risk-banner-label">${RISK_COPY[s.risk.level].label}</p>
         <h3 style="font-size:17px;">${RISK_COPY[s.risk.level].title}</h3>
         <p>${RISK_COPY[s.risk.level].text}</p>
+        ${RISK_COPY[s.risk.level].impacts && RISK_COPY[s.risk.level].impacts.length ? `<ul>${RISK_COPY[s.risk.level].impacts.map((i) => `<li>${i}</li>`).join("")}</ul>` : ""}
+        <div class="action-box">${RISK_COPY[s.risk.level].action}</div>
       </div>
     `
     : `<div class="card" style="margin-bottom:18px;"><p class="empty">Mahasiswa ini belum mengisi Neraca Kemandirian.</p></div>`;

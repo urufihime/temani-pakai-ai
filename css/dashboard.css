@@ -80,6 +80,26 @@
   color:var(--charcoal);
 }
 .risk-banner p{margin:0;font-size:14px;color:#3c3a32;}
+.risk-banner ul{margin:12px 0 0;padding-left:20px;font-size:13.5px;color:#3c3a32;line-height:1.6;}
+.risk-banner ul li{margin-bottom:6px;}
+.risk-banner .action-box{
+  background:#FBE9D8;
+  border:1px solid #E8CBA8;
+  border-radius:4px;
+  padding:14px 16px;
+  margin-top:14px;
+  font-weight:600;
+  font-size:13.5px;
+  color:#4a3f2a;
+}
+.gauge-level-line{
+  text-align:center;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12.5px;
+  color:#5c5847;
+  margin:2px 0 18px;
+}
+.gauge-level-line strong{color:var(--charcoal);}
 
 /* ===== Ledger tugas ===== */
 .ledger-row{
