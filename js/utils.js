@@ -206,3 +206,143 @@ export function buildGaugeSVG(ratio) {
     </svg>
   `;
 }
+
+/* ============================================================
+   ANALISIS JARINGAN SEMANTIK — Jurnal Refleksi
+   Mengubah teks jurnal jadi graf kata: node = kata kunci yang
+   sering muncul, garis = dua kata yang sering muncul bersamaan
+   dalam kalimat yang sama. Layout dihitung pakai simulasi gaya
+   sederhana (repulsion + spring) langsung di browser.
+   ============================================================ */
+
+const STOPWORDS_ID = new Set([
+  "yang","dan","di","ke","dari","ini","itu","saya","aku","kamu","kita","kami","mereka",
+  "akan","untuk","dengan","pada","adalah","atau","juga","tidak","ada","karena","jadi",
+  "saat","bisa","lebih","masih","sudah","belum","harus","kalau","jika","agar","supaya",
+  "seperti","dalam","oleh","sebagai","antara","atas","bawah","sangat","begitu","sekali",
+  "hari","ini","itu","tersebut","banyak","sedikit","semua","setiap","tiap","sering",
+  "kadang","selalu","pernah","lagi","hanya","cuma","saja","pun","kah","lah","tapi",
+  "tetapi","namun","sehingga","ketika","waktu","tugas","kuliah","dosen","kelas","the",
+  "and","for","that","this","with","not","have","has","was","were","are","yaitu",
+  "merasa","rasanya","cukup","mulai","terus","apa","gimana","bagaimana","nya","ya",
+  "aja","gak","nggak","enggak","bikin","buat","dibuat","jadi","udah","udah","udh"
+]);
+
+function tokenizeForNetwork(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\u00e0-\u024f\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS_ID.has(w));
+}
+
+export function buildSemanticNetworkSVG(entries) {
+  const texts = (entries || []).map((e) => e.text).filter(Boolean);
+  if (texts.length === 0) {
+    return `<p class="empty">Belum ada jurnal untuk dianalisis. Tulis beberapa refleksi dulu, ya.</p>`;
+  }
+
+  // Frekuensi kata (global) untuk ukuran node
+  const freq = {};
+  texts.forEach((t) => tokenizeForNetwork(t).forEach((w) => (freq[w] = (freq[w] || 0) + 1)));
+
+  // Co-occurrence per kalimat untuk garis penghubung
+  const coOccur = {};
+  const bumpEdge = (a, b) => {
+    const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+    coOccur[key] = (coOccur[key] || 0) + 1;
+  };
+  texts.forEach((t) => {
+    t.split(/[.!?\n]+/).forEach((sentence) => {
+      const words = [...new Set(tokenizeForNetwork(sentence))].slice(0, 8);
+      for (let i = 0; i < words.length; i++) {
+        for (let j = i + 1; j < words.length; j++) bumpEdge(words[i], words[j]);
+      }
+    });
+  });
+
+  const topWords = Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 14)
+    .map(([w]) => w);
+
+  if (topWords.length < 2) {
+    return `<p class="empty">Belum cukup variasi kata di jurnalmu untuk membentuk peta jaringan. Tulis refleksi yang lebih beragam.</p>`;
+  }
+
+  const topSet = new Set(topWords);
+  const edges = Object.entries(coOccur)
+    .map(([key, weight]) => {
+      const [a, b] = key.split("|");
+      return { a, b, weight };
+    })
+    .filter((e) => topSet.has(e.a) && topSet.has(e.b));
+
+  // ---- Simulasi gaya sederhana (repulsion + spring + centering) ----
+  const W = 420, H = 320, cx = W / 2, cy = H / 2;
+  const nodes = topWords.map((w, i) => ({
+    id: w,
+    freq: freq[w],
+    x: cx + Math.cos((i / topWords.length) * Math.PI * 2) * 100,
+    y: cy + Math.sin((i / topWords.length) * Math.PI * 2) * 100,
+    vx: 0,
+    vy: 0
+  }));
+  const nodeByWord = Object.fromEntries(nodes.map((n) => [n.id, n]));
+
+  for (let iter = 0; iter < 220; iter++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const n1 = nodes[i], n2 = nodes[j];
+        let dx = n1.x - n2.x, dy = n1.y - n2.y;
+        let dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        const repel = 900 / (dist * dist);
+        dx /= dist; dy /= dist;
+        n1.vx += dx * repel; n1.vy += dy * repel;
+        n2.vx -= dx * repel; n2.vy -= dy * repel;
+      }
+    }
+    edges.forEach((e) => {
+      const n1 = nodeByWord[e.a], n2 = nodeByWord[e.b];
+      let dx = n2.x - n1.x, dy = n2.y - n1.y;
+      let dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      const idealLen = 90 / Math.min(e.weight, 4);
+      const force = (dist - idealLen) * 0.02;
+      dx /= dist; dy /= dist;
+      n1.vx += dx * force; n1.vy += dy * force;
+      n2.vx -= dx * force; n2.vy -= dy * force;
+    });
+    nodes.forEach((n) => {
+      n.vx += (cx - n.x) * 0.002;
+      n.vy += (cy - n.y) * 0.002;
+      n.vx *= 0.85; n.vy *= 0.85;
+      n.x += n.vx; n.y += n.vy;
+      n.x = Math.max(30, Math.min(W - 30, n.x));
+      n.y = Math.max(24, Math.min(H - 24, n.y));
+    });
+  }
+
+  const maxFreq = Math.max(...nodes.map((n) => n.freq));
+  const edgeLines = edges.map((e) => {
+    const n1 = nodeByWord[e.a], n2 = nodeByWord[e.b];
+    const w = Math.min(4, 0.8 + e.weight * 0.6);
+    return `<line x1="${n1.x.toFixed(1)}" y1="${n1.y.toFixed(1)}" x2="${n2.x.toFixed(1)}" y2="${n2.y.toFixed(1)}" stroke="var(--paper-line)" stroke-width="${w}" opacity="0.85"/>`;
+  }).join("");
+
+  const nodeCircles = nodes.map((n, i) => {
+    const r = 8 + (n.freq / maxFreq) * 12;
+    const color = i < 3 ? "var(--gold)" : "var(--ink-navy)";
+    return `
+      <circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="0.92"/>
+      <text x="${n.x.toFixed(1)}" y="${(n.y + r + 12).toFixed(1)}" font-size="11" font-family="Inter, sans-serif" fill="#3c3a32" text-anchor="middle">${escapeHtml(n.id)}</text>
+    `;
+  }).join("");
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:520px;display:block;margin:0 auto;">
+      ${edgeLines}
+      ${nodeCircles}
+    </svg>
+    <p class="note" style="margin-top:14px;">Ukuran lingkaran = seberapa sering kata itu muncul di jurnalmu. Garis = dua kata yang sering muncul dalam kalimat yang sama. 3 kata terbesar ditandai warna emas.</p>
+  `;
+}

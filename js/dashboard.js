@@ -15,7 +15,7 @@ import {
   getStudentsByKelas,
   getRecentTasks
 } from "./firestore.js";
-import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG } from "./utils.js";
+import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG, buildSemanticNetworkSVG } from "./utils.js";
 
 const root = document.getElementById("root");
 const mastheadTitle = document.getElementById("mastheadTitle");
@@ -243,6 +243,11 @@ function renderMahasiswaDashboard() {
             </div>
           `).join("")}
         </div>` : ""}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Peta Jaringan Semantik Jurnal</h2><span class="tag">${JOURNAL.length} entri dianalisis</span></div>
+      ${buildSemanticNetworkSVG(JOURNAL)}
     </div>
   `;
 
