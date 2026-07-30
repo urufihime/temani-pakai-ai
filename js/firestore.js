@@ -11,6 +11,7 @@ import {
   query,
   where,
   orderBy,
+  onSnapshot,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
@@ -164,4 +165,67 @@ export async function getRecentTasks(uid, days = 7) {
   cutoff.setDate(cutoff.getDate() - days);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
   return all.filter((t) => t.date >= cutoffStr);
+}
+
+/* ============================================================
+   CHAT — percakapan antara mahasiswa & dosen di kelas yang sama
+   ============================================================ */
+
+// Untuk mahasiswa: cari dosen yang mengampu kode kelas tertentu.
+export async function getDosenByKelas(kelas) {
+  const q = query(
+    collection(db, "users"),
+    where("role", "==", "dosen"),
+    where("kelas", "==", kelas)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+}
+
+// ID percakapan deterministik: gabungan 2 uid yang diurutkan,
+// supaya mahasiswa & dosen selalu bertemu di dokumen yang sama.
+export function getConversationId(uidA, uidB) {
+  return [uidA, uidB].sort().join("_");
+}
+
+export async function ensureConversation(uidA, nameA, uidB, nameB, kelas) {
+  const convId = getConversationId(uidA, uidB);
+  const ref = doc(db, "conversations", convId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      participants: [uidA, uidB],
+      participantNames: { [uidA]: nameA, [uidB]: nameB },
+      kelas: kelas || null,
+      lastMessage: "",
+      lastMessageAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    });
+  }
+  return convId;
+}
+
+export async function getConversationMeta(convId) {
+  const snap = await getDoc(doc(db, "conversations", convId));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function sendChatMessage(convId, senderId, text) {
+  await addDoc(collection(db, "conversations", convId, "messages"), {
+    senderId,
+    text,
+    createdAt: serverTimestamp()
+  });
+  await updateDoc(doc(db, "conversations", convId), {
+    lastMessage: text,
+    lastMessageAt: serverTimestamp()
+  });
+}
+
+// Listener real-time. Mengembalikan fungsi unsubscribe.
+export function listenChatMessages(convId, callback) {
+  const q = query(collection(db, "conversations", convId, "messages"), orderBy("createdAt", "asc"));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
 }

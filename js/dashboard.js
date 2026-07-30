@@ -149,6 +149,7 @@ function renderMahasiswaDashboard() {
 
   root.innerHTML = `
     <div class="dash-shortcuts">
+      <a href="chat.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Chat</a>
       <a href="history.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Riwayat</a>
       <a href="profile.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Profil</a>
     </div>
@@ -345,6 +346,10 @@ function renderDosenDashboard() {
   withRisk.forEach((s) => (s.risk ? count[s.risk.level]++ : count.belum++));
 
   root.innerHTML = `
+    <div class="dash-shortcuts">
+      <a href="chat.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Chat</a>
+    </div>
+
     <div class="card-head" style="border-bottom:none;margin-bottom:14px;">
       <h2>Kelas: ${escapeHtml(PROFILE.kelas)}</h2>
       <span class="tag">${withRisk.length} mahasiswa</span>
