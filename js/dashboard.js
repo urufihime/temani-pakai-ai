@@ -16,7 +16,7 @@ import {
   getRecentTasks,
   listenUnreadConversations
 } from "./firestore.js";
-import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG, buildSemanticNetworkSVG } from "./utils.js";
+import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG, buildSemanticNetworkSVG, CATEGORY_ORDER, CATEGORY_META, CATEGORY_LABEL } from "./utils.js";
 
 const root = document.getElementById("root");
 const mastheadTitle = document.getElementById("mastheadTitle");
@@ -31,7 +31,7 @@ let TASKS = [];
 let RULES = [];
 let RULE_LOGS = [];
 let JOURNAL = [];
-let taskDraft = { course: "", title: "", category: "mandiri" };
+let taskDraft = { course: "", title: "", category: "cukup_mandiri" };
 let ruleDraft = "";
 let journalDraft = "";
 
@@ -206,12 +206,13 @@ function renderMahasiswaDashboard() {
           <input type="text" id="taskTitle" placeholder="Contoh: Laporan ERD" value="${escapeHtml(taskDraft.title)}">
         </div>
       </div>
-      <label>Seberapa bergantung pada AI?</label>
+      <label>Neraca Kemandirian tugas ini</label>
       <div class="pillset" id="taskCatPillset">
-        <button type="button" class="pill" data-cat="mandiri" data-active="${taskDraft.category === "mandiri"}">Mandiri</button>
-        <button type="button" class="pill" data-cat="sebagian" data-active="${taskDraft.category === "sebagian"}">Sebagian AI</button>
-        <button type="button" class="pill" data-cat="sangat" data-active="${taskDraft.category === "sangat"}">Sangat Bergantung</button>
+        ${CATEGORY_ORDER.map((key) => `
+          <button type="button" class="pill" data-cat="${key}" data-active="${taskDraft.category === key}">${CATEGORY_META[key].short}</button>
+        `).join("")}
       </div>
+      <p class="helptext">${CATEGORY_META[taskDraft.category].desc}</p>
       <button class="btn btn-primary" id="addTaskBtn">Simpan Tugas</button>
     </div>
 
@@ -223,7 +224,7 @@ function renderMahasiswaDashboard() {
           <div class="ledger-row">
             <span class="ledger-date">${t.date}</span>
             <span>${escapeHtml(t.course)} — ${escapeHtml(t.title)}</span>
-            <span class="badge badge-${t.category}">${t.category === "mandiri" ? "Mandiri" : t.category === "sebagian" ? "Sebagian" : "Sangat AI"}</span>
+            <span class="badge badge-${t.category}">${CATEGORY_LABEL[t.category] || t.category}</span>
             <button class="ledger-delete" data-id="${t.id}" title="Hapus">✕</button>
           </div>
         `).join("")}
@@ -294,7 +295,7 @@ function bindMahasiswaEvents() {
       return;
     }
     await addTask(CURRENT_USER.uid, { ...taskDraft });
-    taskDraft = { course: "", title: "", category: "mandiri" };
+    taskDraft = { course: "", title: "", category: "cukup_mandiri" };
     TASKS = await getTasks(CURRENT_USER.uid);
     renderMahasiswaDashboard();
   });
@@ -449,7 +450,7 @@ function openStudentModal(uid, withRisk) {
           <div class="ledger-row">
             <span class="ledger-date">${t.date}</span>
             <span>${escapeHtml(t.course)} — ${escapeHtml(t.title)}</span>
-            <span class="badge badge-${t.category}">${t.category === "mandiri" ? "Mandiri" : t.category === "sebagian" ? "Sebagian" : "Sangat AI"}</span>
+            <span class="badge badge-${t.category}">${CATEGORY_LABEL[t.category] || t.category}</span>
             <span></span>
           </div>
         `).join("")}

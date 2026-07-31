@@ -26,9 +26,11 @@
 .setup-wrap .card{margin-bottom:0;}
 
 /* ===== Pill kategori tugas ===== */
+.pill[data-cat="sangat_mandiri"][data-active="true"]{background:var(--ink-navy);border-color:var(--ink-navy);color:#fff;}
 .pill[data-cat="mandiri"][data-active="true"]{background:var(--moss);border-color:var(--moss);color:#fff;}
-.pill[data-cat="sebagian"][data-active="true"]{background:var(--amber);border-color:var(--amber);color:#fff;}
-.pill[data-cat="sangat"][data-active="true"]{background:var(--debt-red);border-color:var(--debt-red);color:#fff;}
+.pill[data-cat="cukup_mandiri"][data-active="true"]{background:var(--gold);border-color:var(--gold);color:#fff;}
+.pill[data-cat="bergantung"][data-active="true"]{background:var(--amber);border-color:var(--amber);color:#fff;}
+.pill[data-cat="sangat_bergantung"][data-active="true"]{background:var(--debt-red);border-color:var(--debt-red);color:#fff;}
 
 /* ===== Legend grafik mingguan ===== */
 .chart-legend{
@@ -157,9 +159,11 @@
   white-space:nowrap;
   color:#fff;
 }
+.badge-sangat_mandiri{background:var(--ink-navy);}
 .badge-mandiri{background:var(--moss);}
-.badge-sebagian{background:var(--amber);}
-.badge-sangat{background:var(--debt-red);}
+.badge-cukup_mandiri{background:var(--gold);}
+.badge-bergantung{background:var(--amber);}
+.badge-sangat_bergantung{background:var(--debt-red);}
 .ledger-delete{
   background:none;border:none;color:#a8a08a;cursor:pointer;font-size:15px;line-height:1;
 }

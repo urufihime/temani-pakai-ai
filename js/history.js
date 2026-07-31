@@ -1,6 +1,6 @@
 import { requireAuth, logout } from "./authGuard.js";
 import { getUserProfile, getTasks, getJournalEntries } from "./firestore.js";
-import { escapeHtml, riskLevelFromCounts, RISK_COPY, CATEGORY_LABEL } from "./utils.js";
+import { escapeHtml, riskLevelFromCounts, RISK_COPY, CATEGORY_LABEL, CATEGORY_ORDER, CATEGORY_META } from "./utils.js";
 
 const root = document.getElementById("root");
 document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -56,7 +56,7 @@ function buildWeeklyTrend() {
 
     const inWeek = TASKS.filter((t) => t.date >= startStr && t.date <= endStr);
     const total = inWeek.length;
-    const veryCount = inWeek.filter((t) => t.category === "sangat").length;
+    const veryCount = inWeek.filter((t) => (CATEGORY_META[t.category] ? CATEGORY_META[t.category].value : 0) >= 4).length;
     const level = riskLevelFromCounts(total, veryCount);
 
     weeks.push({ label: `${fmt(start)}–${fmt(end)}`, total, veryCount, level, isCurrent: i === 0 });
@@ -87,9 +87,9 @@ function render() {
       <div class="card-head"><h2>Semua Tugas</h2><span class="tag">${TASKS.length} total</span></div>
       <div class="pillset filter-pillset" id="filterPillset">
         <button type="button" class="pill" data-filter="semua" data-active="${activeFilter === "semua"}">Semua</button>
-        <button type="button" class="pill" data-cat="mandiri" data-filter="mandiri" data-active="${activeFilter === "mandiri"}">Mandiri</button>
-        <button type="button" class="pill" data-cat="sebagian" data-filter="sebagian" data-active="${activeFilter === "sebagian"}">Sebagian AI</button>
-        <button type="button" class="pill" data-cat="sangat" data-filter="sangat" data-active="${activeFilter === "sangat"}">Sangat AI</button>
+        ${CATEGORY_ORDER.map((key) => `
+          <button type="button" class="pill" data-cat="${key}" data-filter="${key}" data-active="${activeFilter === key}">${CATEGORY_META[key].short}</button>
+        `).join("")}
       </div>
       ${filteredTasks.length === 0
         ? `<p class="empty">Tidak ada tugas pada kategori ini.</p>`
