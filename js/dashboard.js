@@ -13,7 +13,8 @@ import {
   getJournalEntries,
   addJournalEntry,
   getStudentsByKelas,
-  getRecentTasks
+  getRecentTasks,
+  listenUnreadConversations
 } from "./firestore.js";
 import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG, buildSemanticNetworkSVG } from "./utils.js";
 
@@ -39,7 +40,21 @@ let CLASS_STUDENTS = [];
 let STUDENT_TASKS = {};
 let SELECTED_STUDENT_UID = null;
 
+// notifikasi chat
+let unreadChatCount = 0;
 
+function attachChatBadge() {
+  const link = document.getElementById("chatNavLink");
+  if (!link) return;
+  const existing = link.querySelector(".chat-badge");
+  if (existing) existing.remove();
+  if (unreadChatCount > 0) {
+    const badge = document.createElement("span");
+    badge.className = "chat-badge";
+    badge.textContent = unreadChatCount > 9 ? "9+" : String(unreadChatCount);
+    link.appendChild(badge);
+  }
+}
 
 /* ============================================================
    INIT & ROUTING
@@ -54,6 +69,12 @@ requireAuth(async (user) => {
   }
 
   userGreeting.textContent = `${PROFILE.name} · ${PROFILE.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
+
+  listenUnreadConversations(user.uid, (count) => {
+    unreadChatCount = count;
+    attachChatBadge();
+  });
+
   await route();
 });
 
@@ -149,7 +170,7 @@ function renderMahasiswaDashboard() {
 
   root.innerHTML = `
     <div class="dash-shortcuts">
-      <a href="chat.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Chat</a>
+      <a href="chat.html" id="chatNavLink" class="btn btn-ghost btn-small" style="text-decoration:none;">Chat</a>
       <a href="history.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Riwayat</a>
       <a href="profile.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Profil</a>
     </div>
@@ -253,6 +274,7 @@ function renderMahasiswaDashboard() {
   `;
 
   bindMahasiswaEvents();
+  attachChatBadge();
 }
 
 function bindMahasiswaEvents() {
@@ -347,7 +369,7 @@ function renderDosenDashboard() {
 
   root.innerHTML = `
     <div class="dash-shortcuts">
-      <a href="chat.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Chat</a>
+      <a href="chat.html" id="chatNavLink" class="btn btn-ghost btn-small" style="text-decoration:none;">Chat</a>
     </div>
 
     <div class="card-head" style="border-bottom:none;margin-bottom:14px;">
@@ -390,6 +412,7 @@ function renderDosenDashboard() {
   root.querySelectorAll("tr[data-uid]").forEach((row) => {
     row.addEventListener("click", () => openStudentModal(row.dataset.uid, withRisk));
   });
+  attachChatBadge();
 }
 
 function openStudentModal(uid, withRisk) {
@@ -430,6 +453,8 @@ function openStudentModal(uid, withRisk) {
             <span></span>
           </div>
         `).join("")}
+
+        <a href="student-profile.html?uid=${s.uid}" class="btn btn-primary" style="text-decoration:none;display:inline-block;margin-top:20px;">Lihat Profil Lengkap →</a>
       </div>
     </div>
   `;

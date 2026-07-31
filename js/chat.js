@@ -7,7 +7,9 @@ import {
   getConversationMeta,
   getConversationId,
   sendChatMessage,
-  listenChatMessages
+  listenChatMessages,
+  markConversationRead,
+  listenUnreadConversations
 } from "./firestore.js";
 import { escapeHtml } from "./utils.js";
 
@@ -20,6 +22,7 @@ let CONTACTS = [];
 let ACTIVE_CONTACT = null;
 let ACTIVE_CONV_ID = null;
 let UNSUBSCRIBE = null;
+let UNREAD_CONV_IDS = new Set();
 
 requireAuth(async (user) => {
   CURRENT_USER = user;
@@ -41,6 +44,11 @@ requireAuth(async (user) => {
     : await getStudentsByKelas(PROFILE.kelas);
 
   await renderLayout();
+
+  listenUnreadConversations(CURRENT_USER.uid, (count, unreadConvIds) => {
+    UNREAD_CONV_IDS = new Set(unreadConvIds);
+    updateUnreadDots();
+  });
 });
 
 async function renderLayout() {
@@ -56,7 +64,7 @@ async function renderLayout() {
           ? `<p class="empty" style="padding:16px;">${PROFILE.role === "mahasiswa" ? "Belum ada dosen terdaftar di kelasmu." : "Belum ada mahasiswa di kelasmu."}</p>`
           : CONTACTS.map((c, i) => `
             <button type="button" class="contact-item" data-uid="${c.uid}">
-              <div class="contact-name">${escapeHtml(c.name)}</div>
+              <div class="contact-name">${escapeHtml(c.name)}<span class="contact-unread-dot" id="dot-${c.uid}" style="display:none;"></span></div>
               <div class="contact-preview">${previews[i] && previews[i].lastMessage ? escapeHtml(previews[i].lastMessage) : "Belum ada pesan"}</div>
             </button>
           `).join("")}
@@ -74,6 +82,17 @@ async function renderLayout() {
       btn.classList.add("active");
       openConversation(contact);
     });
+  });
+
+  updateUnreadDots();
+}
+
+function updateUnreadDots() {
+  CONTACTS.forEach((c) => {
+    const dot = document.getElementById(`dot-${c.uid}`);
+    if (!dot) return;
+    const convId = getConversationId(CURRENT_USER.uid, c.uid);
+    dot.style.display = UNREAD_CONV_IDS.has(convId) ? "inline-block" : "none";
   });
 }
 
@@ -105,6 +124,7 @@ async function openConversation(contact) {
     }
   });
 
+  await markConversationRead(ACTIVE_CONV_ID, CURRENT_USER.uid);
   UNSUBSCRIBE = listenChatMessages(ACTIVE_CONV_ID, renderMessages);
 }
 
@@ -128,6 +148,8 @@ function renderMessages(messages) {
       }).join("");
 
   box.scrollTop = box.scrollHeight;
+
+  if (ACTIVE_CONV_ID) markConversationRead(ACTIVE_CONV_ID, CURRENT_USER.uid);
 }
 
 async function sendCurrentMessage() {

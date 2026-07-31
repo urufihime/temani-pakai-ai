@@ -218,7 +218,38 @@ export async function sendChatMessage(convId, senderId, text) {
   });
   await updateDoc(doc(db, "conversations", convId), {
     lastMessage: text,
+    lastSenderId: senderId,
     lastMessageAt: serverTimestamp()
+  });
+}
+
+// Tandai percakapan sudah dibaca oleh user tertentu (dipanggil saat
+// mereka membuka/aktif melihat percakapan itu).
+export async function markConversationRead(convId, uid) {
+  await updateDoc(doc(db, "conversations", convId), {
+    [`lastReadBy.${uid}`]: serverTimestamp()
+  });
+}
+
+// Listener real-time jumlah percakapan yang punya pesan belum dibaca
+// untuk user tertentu. callback(count, unreadConvIds).
+export function listenUnreadConversations(uid, callback) {
+  const q = query(collection(db, "conversations"), where("participants", "array-contains", uid));
+  return onSnapshot(q, (snap) => {
+    let count = 0;
+    const unreadConvIds = [];
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      if (!data.lastSenderId || data.lastSenderId === uid) return;
+      const lastMsgMillis = data.lastMessageAt && data.lastMessageAt.toMillis ? data.lastMessageAt.toMillis() : 0;
+      const readTs = data.lastReadBy && data.lastReadBy[uid];
+      const readMillis = readTs && readTs.toMillis ? readTs.toMillis() : 0;
+      if (lastMsgMillis > readMillis) {
+        count++;
+        unreadConvIds.push(d.id);
+      }
+    });
+    callback(count, unreadConvIds);
   });
 }
 
