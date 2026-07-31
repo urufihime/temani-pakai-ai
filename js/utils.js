@@ -47,6 +47,30 @@ export function computeRisk(tasks, days = 7) {
   return { level: riskLevelFromCounts(weekTotal, veryCount), weekTotal, veryCount, ratio };
 }
 
+/**
+ * Level hasil mentah kuis Neraca Kemandirian (rendah/sedang/tinggi,
+ * dari skor 0-21). Dipakai di layar hasil kuis (assessment.html)
+ * dan ringkasan di profile.html. BEDA dengan RISK_COPY (4 level)
+ * yang dipakai untuk hasil gabungan skor kuis + pola tugas di dashboard.
+ */
+export const QUIZ_LEVEL_COPY = {
+  rendah: {
+    label: "Rendah",
+    title: "Ketergantunganmu pada AI masih rendah",
+    text: "Berdasarkan jawabanmu, kamu masih banyak mengandalkan kemampuanmu sendiri. Hasil akhir di dashboard nanti juga mempertimbangkan pola tugasmu minggu berjalan."
+  },
+  sedang: {
+    label: "Sedang",
+    title: "Ketergantunganmu pada AI mulai terlihat",
+    text: "Beberapa jawabanmu menunjukkan kecenderungan mengandalkan AI. Hasil akhir di dashboard akan disesuaikan lagi dengan pola tugasmu minggu berjalan."
+  },
+  tinggi: {
+    label: "Tinggi",
+    title: "Ketergantunganmu pada AI cukup tinggi",
+    text: "Sebagian besar jawabanmu menunjukkan ketergantungan yang cukup besar pada AI. Hasil akhir di dashboard akan disesuaikan lagi dengan pola tugasmu minggu berjalan."
+  }
+};
+
 export const RISK_COPY = {
   aman: {
     label: "Status: Aman",
@@ -107,10 +131,11 @@ export function computeCombinedRisk(assessmentScore, tasks) {
   const base = assessmentLevelIndex(assessmentScore || 0);
   const cutoffStr = daysAgoStr(7);
   const week = (tasks || []).filter((t) => t.date >= cutoffStr);
-  const veryCount = week.filter((t) => t.category === "sangat").length;
+  const isVeryDependent = (t) => (CATEGORY_META[t.category] ? CATEGORY_META[t.category].value : 0) >= 4;
+  const veryCount = week.filter(isVeryDependent).length;
   const ratio = week.length > 0 ? veryCount / week.length : 0;
   const today = todayStr();
-  const todayVery = (tasks || []).filter((t) => t.date === today && t.category === "sangat").length;
+  const todayVery = (tasks || []).filter((t) => t.date === today && isVeryDependent(t)).length;
 
   let add = 0;
   if (ratio > 0.75 || todayVery >= 5) add = 2;
@@ -123,11 +148,50 @@ export function computeCombinedRisk(assessmentScore, tasks) {
   return { level: levels[scoreIdx], ratio, veryCount, weekTotal: week.length, todayVery, scoreIdx, continuous };
 }
 
-export const CATEGORY_LABEL = {
-  mandiri: "Mandiri",
-  sebagian: "Sebagian",
-  sangat: "Sangat AI"
+/**
+ * 5 skala Neraca Kemandirian untuk tugas baru, diurutkan dari
+ * paling mandiri ke paling bergantung pada AI. value 1-5 dipakai
+ * mesin risiko (semakin besar = semakin bergantung pada AI).
+ */
+export const CATEGORY_ORDER = ["sangat_mandiri", "mandiri", "cukup_mandiri", "bergantung", "sangat_bergantung"];
+
+export const CATEGORY_META = {
+  sangat_mandiri: {
+    short: "Sangat Mandiri",
+    desc: "Pengguna mampu menyelesaikan tugas tanpa bergantung pada AI. Jika AI digunakan, fungsinya hanya sebagai alat pelengkap untuk meningkatkan kualitas hasil, bukan sebagai penentu utama isi pekerjaan.",
+    value: 1,
+    color: "var(--ink-navy)"
+  },
+  mandiri: {
+    short: "Mandiri",
+    desc: "Pengguna mengerjakan tugas secara mandiri dan hanya memanfaatkan AI pada bagian-bagian tertentu, seperti verifikasi informasi, penyuntingan bahasa, atau memperoleh alternatif solusi.",
+    value: 2,
+    color: "var(--moss)"
+  },
+  cukup_mandiri: {
+    short: "Cukup Mandiri",
+    desc: "AI digunakan sebagai alat bantu untuk memperoleh ide, klarifikasi, atau referensi. Pengguna tetap berperan aktif dalam menyusun dan mengevaluasi hasil tugas.",
+    value: 3,
+    color: "var(--gold)"
+  },
+  bergantung: {
+    short: "Bergantung",
+    desc: "AI digunakan sebagai sumber utama dalam mengerjakan tugas. Pengguna masih melakukan sedikit penyesuaian, tetapi kontribusi pemikiran pribadi relatif terbatas.",
+    value: 4,
+    color: "var(--amber)"
+  },
+  sangat_bergantung: {
+    short: "Sangat Bergantung",
+    desc: "Hampir seluruh proses pengerjaan tugas bergantung pada AI, mulai dari memahami soal, menyusun jawaban, hingga menyelesaikan tugas, dengan sedikit atau tanpa evaluasi pribadi.",
+    value: 5,
+    color: "var(--debt-red)"
+  }
 };
+
+// Alias singkat untuk label badge/ledger di berbagai halaman.
+export const CATEGORY_LABEL = Object.fromEntries(
+  CATEGORY_ORDER.map((key) => [key, CATEGORY_META[key].short])
+);
 
 /**
  * Grafik batang bertumpuk (stacked bar) 7 hari terakhir,
@@ -142,28 +206,22 @@ export function buildWeekChartSVG(tasks) {
   }
   const counts = days.map((day) => {
     const dayTasks = tasks.filter((t) => t.date === day);
-    return {
-      mandiri: dayTasks.filter((t) => t.category === "mandiri").length,
-      sebagian: dayTasks.filter((t) => t.category === "sebagian").length,
-      sangat: dayTasks.filter((t) => t.category === "sangat").length
-    };
+    const c = {};
+    CATEGORY_ORDER.forEach((key) => (c[key] = dayTasks.filter((t) => t.category === key).length));
+    return c;
   });
-  const maxV = Math.max(1, ...counts.map((c) => c.mandiri + c.sebagian + c.sangat));
+  const maxV = Math.max(1, ...counts.map((c) => CATEGORY_ORDER.reduce((sum, key) => sum + c[key], 0)));
   const barW = 34, gap = 14, chartH = 110;
   const svgW = days.length * (barW + gap);
   let bars = "";
   counts.forEach((c, i) => {
     const x = i * (barW + gap);
     let y = chartH;
-    const segs = [
-      ["mandiri", c.mandiri, "var(--moss)"],
-      ["sebagian", c.sebagian, "var(--amber)"],
-      ["sangat", c.sangat, "var(--debt-red)"]
-    ];
-    segs.forEach(([, val, color]) => {
+    CATEGORY_ORDER.forEach((key) => {
+      const val = c[key];
       const h = (val / maxV) * chartH;
       y -= h;
-      if (val > 0) bars += `<rect x="${x}" y="${y.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" fill="${color}" rx="1.5"/>`;
+      if (val > 0) bars += `<rect x="${x}" y="${y.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" fill="${CATEGORY_META[key].color}" rx="1.5"/>`;
     });
     const label = days[i].slice(5).replace("-", "/");
     bars += `<text x="${x + barW / 2}" y="${chartH + 16}" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="#847d63" text-anchor="middle">${label}</text>`;
@@ -174,9 +232,7 @@ export function buildWeekChartSVG(tasks) {
       ${bars}
     </svg>
     <div class="chart-legend">
-      <span><span class="legend-dot" style="background:var(--moss);"></span>Mandiri</span>
-      <span><span class="legend-dot" style="background:var(--amber);"></span>Dibantu Sebagian</span>
-      <span><span class="legend-dot" style="background:var(--debt-red);"></span>Sangat Bergantung</span>
+      ${CATEGORY_ORDER.map((key) => `<span><span class="legend-dot" style="background:${CATEGORY_META[key].color};"></span>${CATEGORY_META[key].short}</span>`).join("")}
     </div>
   `;
 }

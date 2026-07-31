@@ -1,6 +1,6 @@
 import { requireAuth, logout } from "./authGuard.js";
 import { getUserProfile, saveAssessmentResult } from "./firestore.js";
-import { assessmentLevelIndex } from "./utils.js";
+import { assessmentLevelIndex, QUIZ_LEVEL_COPY } from "./utils.js";
 
 const root = document.getElementById("root");
 document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -45,24 +45,6 @@ const QUESTIONS = [
     options: ["Hampir selalu tanpa AI", "Sering tanpa AI", "Jarang tanpa AI", "Hampir tidak pernah tanpa AI"]
   }
 ];
-
-const QUIZ_LEVEL_COPY = {
-  rendah: {
-    label: "Rendah",
-    title: "Ketergantunganmu pada AI masih rendah",
-    text: "Berdasarkan jawabanmu, kamu masih banyak mengandalkan kemampuanmu sendiri. Hasil akhir di dashboard nanti juga mempertimbangkan pola tugasmu minggu berjalan."
-  },
-  sedang: {
-    label: "Sedang",
-    title: "Ketergantunganmu pada AI mulai terlihat",
-    text: "Beberapa jawabanmu menunjukkan kecenderungan mengandalkan AI. Hasil akhir di dashboard akan disesuaikan lagi dengan pola tugasmu minggu berjalan."
-  },
-  tinggi: {
-    label: "Tinggi",
-    title: "Ketergantunganmu pada AI cukup tinggi",
-    text: "Sebagian besar jawabanmu menunjukkan ketergantungan yang cukup besar pada AI. Hasil akhir di dashboard akan disesuaikan lagi dengan pola tugasmu minggu berjalan."
-  }
-};
 
 /* ============================================================
    INIT

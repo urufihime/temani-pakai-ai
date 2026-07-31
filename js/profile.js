@@ -1,6 +1,6 @@
 import { requireAuth, logout } from "./authGuard.js";
 import { getUserProfile, updateUserProfileFields } from "./firestore.js";
-import { escapeHtml, RISK_COPY } from "./utils.js";
+import { escapeHtml, QUIZ_LEVEL_COPY } from "./utils.js";
 
 const root = document.getElementById("root");
 document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -17,7 +17,7 @@ requireAuth(async (user) => {
 
 function render() {
   const isDosen = PROFILE.role === "dosen";
-  const assessmentCopy = PROFILE.assessmentDone ? RISK_COPY[PROFILE.assessmentLevel] : null;
+  const assessmentCopy = PROFILE.assessmentDone ? QUIZ_LEVEL_COPY[PROFILE.assessmentLevel] : null;
 
   root.innerHTML = `
     <div class="card">
@@ -42,7 +42,7 @@ function render() {
       <div class="card">
         <div class="card-head"><h2>Neraca Kemandirian</h2></div>
         ${PROFILE.assessmentDone
-          ? `<div class="profile-row"><span class="k">Hasil Terakhir</span><span class="v">${assessmentCopy.label} (${PROFILE.assessmentScore}/100)</span></div>
+          ? `<div class="profile-row"><span class="k">Hasil Terakhir</span><span class="v">${assessmentCopy.label} (${PROFILE.assessmentScore}/21)</span></div>
              <a href="assessment.html" class="btn btn-ghost btn-small" style="text-decoration:none;display:inline-block;margin-top:12px;">Isi Ulang Asesmen</a>`
           : `<p class="empty">Belum diisi.</p>
              <a href="assessment.html" class="btn btn-primary" style="text-decoration:none;display:inline-block;">Isi Sekarang</a>`
