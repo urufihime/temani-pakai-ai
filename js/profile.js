@@ -1,6 +1,11 @@
 import { requireAuth, logout } from "./authGuard.js";
 import { getUserProfile, updateUserProfileFields } from "./firestore.js";
 import { escapeHtml, QUIZ_LEVEL_COPY } from "./utils.js";
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword
+} from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
 
 const root = document.getElementById("root");
 document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -31,8 +36,17 @@ function render() {
       <label for="nameInput">Nama Lengkap</label>
       <input type="text" id="nameInput" value="${escapeHtml(PROFILE.name)}">
 
-      <label for="kelasInput">${isDosen ? "Kelas yang Diampu" : "Kode Kelas"}</label>
+      ${isDosen ? `
+        <label for="nipInput">NIP / NIDN</label>
+        <input type="text" id="nipInput" placeholder="Opsional" value="${escapeHtml(PROFILE.nip || "")}">
+
+        <label for="mataKuliahInput">Mata Kuliah yang Diampu</label>
+        <input type="text" id="mataKuliahInput" placeholder="Contoh: Basis Data, Pemrograman Web" value="${escapeHtml(PROFILE.mataKuliah || "")}">
+      ` : ""}
+
+      <label for="kelasInput">${isDosen ? "Kode Kelas yang Diampu" : "Kode Kelas"}</label>
       <input type="text" id="kelasInput" value="${escapeHtml(PROFILE.kelas || "")}">
+      ${isDosen ? `<p class="helptext">Kode ini yang dipakai mahasiswa untuk terhubung ke kelasmu — beda dengan nama mata kuliah di atas.</p>` : ""}
 
       <button class="btn btn-primary" id="saveBtn">Simpan Perubahan</button>
       <span id="saveStatus" style="margin-left:10px;font-size:12.5px;color:var(--moss-2);display:none;">Tersimpan.</span>
@@ -49,8 +63,28 @@ function render() {
         }
       </div>
     ` : ""}
+
+    <div class="card">
+      <div class="card-head"><h2>Ganti Password</h2></div>
+      <div id="passwordMessage" class="banner auth-error" style="display:none;"></div>
+
+      <label for="currentPasswordInput">Password Saat Ini</label>
+      <input type="password" id="currentPasswordInput" autocomplete="current-password">
+
+      <label for="newPasswordInput">Password Baru</label>
+      <input type="password" id="newPasswordInput" placeholder="Minimal 6 karakter" autocomplete="new-password">
+
+      <label for="confirmNewPasswordInput">Konfirmasi Password Baru</label>
+      <input type="password" id="confirmNewPasswordInput" autocomplete="new-password">
+
+      <button class="btn btn-primary" id="changePasswordBtn">Ubah Password</button>
+    </div>
   `;
 
+  bindEvents();
+}
+
+function bindEvents() {
   document.getElementById("saveBtn").addEventListener("click", async () => {
     const name = document.getElementById("nameInput").value.trim();
     const kelas = document.getElementById("kelasInput").value.trim();
@@ -62,9 +96,14 @@ function render() {
     btn.disabled = true;
     btn.textContent = "Menyimpan…";
 
-    await updateUserProfileFields(CURRENT_USER.uid, { name, kelas: kelas || null });
-    PROFILE.name = name;
-    PROFILE.kelas = kelas || null;
+    const fields = { name, kelas: kelas || null };
+    if (PROFILE.role === "dosen") {
+      fields.nip = document.getElementById("nipInput").value.trim() || null;
+      fields.mataKuliah = document.getElementById("mataKuliahInput").value.trim() || null;
+    }
+
+    await updateUserProfileFields(CURRENT_USER.uid, fields);
+    Object.assign(PROFILE, fields);
     document.getElementById("userGreeting").textContent = `${PROFILE.name} · ${PROFILE.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
 
     btn.disabled = false;
@@ -73,4 +112,65 @@ function render() {
     status.style.display = "inline";
     setTimeout(() => (status.style.display = "none"), 2000);
   });
+
+  document.getElementById("changePasswordBtn").addEventListener("click", handleChangePassword);
+}
+
+function showPasswordMessage(message, isSuccess) {
+  const box = document.getElementById("passwordMessage");
+  box.textContent = message;
+  box.classList.remove("banner-error", "banner-success");
+  box.classList.add(isSuccess ? "banner-success" : "banner-error");
+  box.style.display = "block";
+}
+
+function translatePasswordError(error) {
+  const map = {
+    "auth/wrong-password": "Password saat ini salah.",
+    "auth/invalid-credential": "Password saat ini salah.",
+    "auth/weak-password": "Password baru minimal 6 karakter.",
+    "auth/requires-recent-login": "Sesi login sudah terlalu lama. Silakan keluar dan masuk ulang, lalu coba lagi.",
+    "auth/too-many-requests": "Terlalu banyak percobaan. Coba lagi sebentar lagi."
+  };
+  return map[error.code] || "Gagal mengubah password. Coba lagi.";
+}
+
+async function handleChangePassword() {
+  const currentPassword = document.getElementById("currentPasswordInput").value;
+  const newPassword = document.getElementById("newPasswordInput").value;
+  const confirmNewPassword = document.getElementById("confirmNewPasswordInput").value;
+  const btn = document.getElementById("changePasswordBtn");
+
+  if (!currentPassword || !newPassword || !confirmNewPassword) {
+    showPasswordMessage("Isi semua kolom password dulu.", false);
+    return;
+  }
+  if (newPassword.length < 6) {
+    showPasswordMessage("Password baru minimal 6 karakter.", false);
+    return;
+  }
+  if (newPassword !== confirmNewPassword) {
+    showPasswordMessage("Konfirmasi password baru tidak cocok.", false);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Memproses…";
+
+  try {
+    const credential = EmailAuthProvider.credential(CURRENT_USER.email, currentPassword);
+    await reauthenticateWithCredential(CURRENT_USER, credential);
+    await updatePassword(CURRENT_USER, newPassword);
+
+    showPasswordMessage("Password berhasil diubah.", true);
+    document.getElementById("currentPasswordInput").value = "";
+    document.getElementById("newPasswordInput").value = "";
+    document.getElementById("confirmNewPasswordInput").value = "";
+  } catch (error) {
+    console.error(error);
+    showPasswordMessage(translatePasswordError(error), false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Ubah Password";
+  }
 }
