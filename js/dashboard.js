@@ -371,6 +371,7 @@ function renderDosenDashboard() {
   root.innerHTML = `
     <div class="dash-shortcuts">
       <a href="chat.html" id="chatNavLink" class="btn btn-ghost btn-small" style="text-decoration:none;">Chat</a>
+      <a href="profile.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Profil</a>
     </div>
 
     <div class="card-head" style="border-bottom:none;margin-bottom:14px;">

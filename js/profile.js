@@ -29,6 +29,19 @@ function render() {
       <div class="card-head"><h2>Akun</h2></div>
       <div class="profile-row"><span class="k">Email</span><span class="v">${escapeHtml(PROFILE.email)}</span></div>
       <div class="profile-row"><span class="k">Peran</span><span class="v">${isDosen ? "Dosen" : "Mahasiswa"}</span></div>
+
+      <div id="passwordMessage" class="banner auth-error" style="display:none;margin-top:16px;"></div>
+
+      <label for="currentPasswordInput" style="margin-top:16px;">Password Saat Ini</label>
+      <input type="password" id="currentPasswordInput" autocomplete="current-password">
+
+      <label for="newPasswordInput">Password Baru</label>
+      <input type="password" id="newPasswordInput" placeholder="Minimal 6 karakter" autocomplete="new-password">
+
+      <label for="confirmNewPasswordInput">Konfirmasi Password Baru</label>
+      <input type="password" id="confirmNewPasswordInput" autocomplete="new-password">
+
+      <button class="btn btn-primary" id="changePasswordBtn">Ubah Password</button>
     </div>
 
     <div class="card">
@@ -63,22 +76,6 @@ function render() {
         }
       </div>
     ` : ""}
-
-    <div class="card">
-      <div class="card-head"><h2>Ganti Password</h2></div>
-      <div id="passwordMessage" class="banner auth-error" style="display:none;"></div>
-
-      <label for="currentPasswordInput">Password Saat Ini</label>
-      <input type="password" id="currentPasswordInput" autocomplete="current-password">
-
-      <label for="newPasswordInput">Password Baru</label>
-      <input type="password" id="newPasswordInput" placeholder="Minimal 6 karakter" autocomplete="new-password">
-
-      <label for="confirmNewPasswordInput">Konfirmasi Password Baru</label>
-      <input type="password" id="confirmNewPasswordInput" autocomplete="new-password">
-
-      <button class="btn btn-primary" id="changePasswordBtn">Ubah Password</button>
-    </div>
   `;
 
   bindEvents();
