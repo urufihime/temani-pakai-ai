@@ -14,9 +14,12 @@ import {
   addJournalEntry,
   getStudentsByKelas,
   getRecentTasks,
-  listenUnreadConversations
+  listenUnreadConversations,
+  addTarget,
+  getTargets,
+  deleteTarget
 } from "./firestore.js";
-import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG, buildSemanticNetworkSVG, CATEGORY_ORDER, CATEGORY_META, CATEGORY_LABEL } from "./utils.js";
+import { escapeHtml, todayStr, daysAgoStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG, buildSemanticNetworkSVG, buildRuleComplianceSVG, buildTargetChartSVG, CATEGORY_ORDER, CATEGORY_META, CATEGORY_LABEL } from "./utils.js";
 
 const root = document.getElementById("root");
 const mastheadTitle = document.getElementById("mastheadTitle");
@@ -31,9 +34,17 @@ let TASKS = [];
 let RULES = [];
 let RULE_LOGS = [];
 let JOURNAL = [];
+let TARGETS = [];
 let taskDraft = { course: "", title: "", category: "cukup_mandiri" };
 let ruleDraft = "";
 let journalDraft = "";
+let targetDraft = { course: "", title: "", startCategory: "sangat_bergantung", endCategory: "sangat_mandiri", startDate: todayStr() };
+
+// slider "Tinjau Waktu" — 0 = hari ini (mode normal, interaktif penuh)
+let weeksAgo = 0;
+function getViewDate() {
+  return weeksAgo === 0 ? todayStr() : daysAgoStr(weeksAgo * 7);
+}
 
 // data dosen
 let CLASS_STUDENTS = [];
@@ -156,17 +167,30 @@ function renderAssessmentPrompt() {
    MAHASISWA — muat data
    ============================================================ */
 async function loadMahasiswaData() {
-  [TASKS, RULES, RULE_LOGS, JOURNAL] = await Promise.all([
+  [TASKS, RULES, RULE_LOGS, JOURNAL, TARGETS] = await Promise.all([
     getTasks(CURRENT_USER.uid),
     getRules(CURRENT_USER.uid),
     getRuleLogs(CURRENT_USER.uid),
-    getJournalEntries(CURRENT_USER.uid)
+    getJournalEntries(CURRENT_USER.uid),
+    getTargets(CURRENT_USER.uid)
   ]);
 }
 
 function renderMahasiswaDashboard() {
-  const risk = computeCombinedRisk(PROFILE.assessmentScore, TASKS);
+  const viewDate = getViewDate();
+  const isHistorical = weeksAgo > 0;
+  const risk = computeCombinedRisk(PROFILE.assessmentScore, TASKS, viewDate);
   const copy = RISK_COPY[risk.level];
+  const tasksUpToView = TASKS.filter((t) => t.date <= viewDate);
+  const journalUpToView = JOURNAL.filter((j) => j.date <= viewDate);
+
+  const sliderPresets = [
+    { w: 0, label: "Hari Ini" },
+    { w: 1, label: "1 Minggu Lalu" },
+    { w: 4, label: "1 Bulan Lalu" },
+    { w: 8, label: "2 Bulan Lalu" },
+    { w: 12, label: "3 Bulan Lalu" }
+  ];
 
   root.innerHTML = `
     <div class="dash-shortcuts">
@@ -176,9 +200,21 @@ function renderMahasiswaDashboard() {
     </div>
 
     <div class="card">
+      <div class="card-head"><h2>Tinjau Waktu</h2><span class="tag">${isHistorical ? `Per ${viewDate}` : "Hari ini"}</span></div>
+      <input type="range" id="timeSlider" min="0" max="24" step="1" value="${weeksAgo}" style="width:100%;">
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;font-family:'IBM Plex Mono',monospace;color:#847d63;margin-top:2px;">
+        <span>24 minggu lalu</span><span>Hari ini</span>
+      </div>
+      <div class="pillset" id="timePresetPillset" style="margin-top:12px;">
+        ${sliderPresets.map((p) => `<button type="button" class="pill" data-weeks="${p.w}" data-active="${weeksAgo === p.w}">${p.label}</button>`).join("")}
+      </div>
+      ${isHistorical ? `<p class="note" style="margin-top:12px;">Kamu sedang meninjau kondisi per <strong>${viewDate}</strong> (${weeksAgo} minggu lalu). Semua bagian di bawah dihitung ulang pakai data sampai tanggal itu saja, dan mode tambah/hapus data dinonaktifkan sementara. Geser slider ke "Hari Ini" untuk kembali normal.</p>` : ""}
+    </div>
+
+    <div class="card">
       <div class="card-head"><h2>Peringatan Dini</h2><span class="tag">Gauge ketergantungan</span></div>
       <div class="gauge-wrap">${buildGaugeSVG(risk.continuous / 3)}</div>
-      <p class="gauge-level-line">Level saat ini: <strong>${copy.label.replace(/^.*: /, "") || copy.label}</strong> · ${risk.veryCount}/${risk.weekTotal} tugas minggu ini "Sangat Bergantung"</p>
+      <p class="gauge-level-line">Level ${isHistorical ? `per ${viewDate}` : "saat ini"}: <strong>${copy.label.replace(/^.*: /, "") || copy.label}</strong> · ${risk.veryCount}/${risk.weekTotal} tugas 7 hari itu "Sangat Bergantung"</p>
       <div class="risk-banner ${risk.level}">
         <p class="risk-banner-label">${copy.label}</p>
         <h3>${copy.title}</h3>
@@ -186,23 +222,24 @@ function renderMahasiswaDashboard() {
         ${copy.impacts && copy.impacts.length ? `<ul>${copy.impacts.map((i) => `<li>${i}</li>`).join("")}</ul>` : ""}
         <div class="action-box">${copy.action}</div>
       </div>
-      <a href="assessment.html" class="btn btn-ghost btn-small" style="text-decoration:none;display:inline-block;margin-top:14px;">Isi Ulang Asesmen</a>
+      ${!isHistorical ? `<a href="assessment.html" class="btn btn-ghost btn-small" style="text-decoration:none;display:inline-block;margin-top:14px;">Isi Ulang Asesmen</a>` : ""}
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Neraca Minggu Ini</h2><span class="tag">7 hari terakhir</span></div>
-      ${buildWeekChartSVG(TASKS)}
+      <div class="card-head"><h2>Neraca Minggu Ini</h2><span class="tag">${isHistorical ? `7 hari s/d ${viewDate}` : "7 hari terakhir"}</span></div>
+      ${buildWeekChartSVG(TASKS, viewDate)}
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Catat Tugas Baru</h2></div>
+      <div class="card-head"><h2>Catat Aktivitas Baru</h2></div>
+      ${isHistorical ? `<p class="empty">Mode tinjauan riwayat aktif — kembali ke "Hari Ini" untuk mencatat aktivitas baru.</p>` : `
       <div class="field-row">
         <div>
           <label for="taskCourse">Mata Kuliah</label>
           <input type="text" id="taskCourse" placeholder="Contoh: Basis Data" value="${escapeHtml(taskDraft.course)}">
         </div>
         <div>
-          <label for="taskTitle">Judul Tugas</label>
+          <label for="taskTitle">Nama Aktivitas</label>
           <input type="text" id="taskTitle" placeholder="Contoh: Laporan ERD" value="${escapeHtml(taskDraft.title)}">
         </div>
       </div>
@@ -214,52 +251,115 @@ function renderMahasiswaDashboard() {
       </div>
       <p class="helptext">${CATEGORY_META[taskDraft.category].desc}</p>
       <button class="btn btn-primary" id="addTaskBtn">Simpan Tugas</button>
+      `}
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Riwayat Tugas</h2><span class="tag">${TASKS.length} total</span></div>
-      ${TASKS.length === 0
-        ? `<p class="empty">Belum ada tugas dicatat.</p>`
-        : TASKS.map((t) => `
+      <div class="card-head"><h2>Riwayat Tugas</h2><span class="tag">${tasksUpToView.length}${isHistorical ? ` s/d ${viewDate}` : " total"}</span></div>
+      ${tasksUpToView.length === 0
+        ? `<p class="empty">Belum ada tugas dicatat${isHistorical ? " sampai tanggal ini" : ""}.</p>`
+        : tasksUpToView.map((t) => `
           <div class="ledger-row">
             <span class="ledger-date">${t.date}</span>
             <span>${escapeHtml(t.course)} — ${escapeHtml(t.title)}</span>
             <span class="badge badge-${t.category}">${CATEGORY_LABEL[t.category] || t.category}</span>
-            <button class="ledger-delete" data-id="${t.id}" title="Hapus">✕</button>
+            ${!isHistorical ? `<button class="ledger-delete" data-id="${t.id}" title="Hapus">✕</button>` : `<span></span>`}
           </div>
         `).join("")}
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Aturan Pribadi</h2></div>
+      <div class="card-head"><h2>Aturan Pribadi</h2><span class="tag">Kepatuhan 7 hari${isHistorical ? ` s/d ${viewDate}` : ""}</span></div>
+      ${buildRuleComplianceSVG(RULE_LOGS, 7, viewDate)}
+      ${!isHistorical ? `
       <div style="display:flex;gap:8px;margin-bottom:16px;">
         <input type="text" id="ruleInput" placeholder="Contoh: Tidak pakai AI untuk draf pertama" value="${escapeHtml(ruleDraft)}" style="margin-bottom:0;flex:1;">
         <button class="btn btn-primary btn-small" id="addRuleBtn">Tambah</button>
-      </div>
+      </div>` : ""}
       ${RULES.length === 0
-        ? `<p class="empty">Belum ada aturan. Tambahkan aturan pribadimu di atas.</p>`
+        ? `<p class="empty">Belum ada aturan. ${isHistorical ? "" : "Tambahkan aturan pribadimu di atas."}</p>`
         : RULES.map((r) => {
-            const log = RULE_LOGS.find((l) => l.ruleId === r.id && l.date === todayStr());
+            const log = RULE_LOGS.find((l) => l.ruleId === r.id && l.date === viewDate);
             return `
             <div class="rule-row">
               <span class="rule-text">${escapeHtml(r.text)}</span>
               <div class="rule-actions">
-                <button class="chip ${log && log.followed ? "on-ok" : ""}" data-rule="${r.id}" data-followed="true">✓ Ditaati</button>
-                <button class="chip ${log && !log.followed ? "on-break" : ""}" data-rule="${r.id}" data-followed="false">✕ Dilanggar</button>
-                <button class="ledger-delete" data-delrule="${r.id}" title="Hapus aturan">✕</button>
+                ${isHistorical
+                  ? `<span class="chip ${log && log.followed ? "on-ok" : ""}" style="cursor:default;">✓ Ditaati</span><span class="chip ${log && !log.followed ? "on-break" : ""}" style="cursor:default;">✕ Dilanggar</span>`
+                  : `<button class="chip ${log && log.followed ? "on-ok" : ""}" data-rule="${r.id}" data-followed="true">✓ Ditaati</button>
+                     <button class="chip ${log && !log.followed ? "on-break" : ""}" data-rule="${r.id}" data-followed="false">✕ Dilanggar</button>
+                     <button class="ledger-delete" data-delrule="${r.id}" title="Hapus aturan">✕</button>`}
               </div>
             </div>`;
           }).join("")}
-      <p class="note">Tandai setiap hari apakah kamu menaati aturanmu sendiri.</p>
+      <p class="note">${isHistorical ? `Menampilkan status per ${viewDate}.` : "Tandai setiap hari apakah kamu menaati aturanmu sendiri."}</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Target Individu dalam Satu Semester</h2><span class="tag">19 minggu / mata kuliah</span></div>
+      <p class="helptext" style="margin-top:0;">Buat target untuk mata kuliah tertentu — target besarmu otomatis dipecah ke sepanjang durasi pemakaian alat ini per mata kuliah: 14 pertemuan + 2 minggu UTS + 2 minggu UAS + 1 minggu evaluasi (19 minggu total), dibandingkan dengan capaian nyata dari tugas yang kamu catat.</p>
+
+      ${!isHistorical ? `
+      <div class="field-row">
+        <div>
+          <label for="targetCourse">Mata Kuliah</label>
+          <input type="text" id="targetCourse" list="courseList" placeholder="Contoh: Basis Data" value="${escapeHtml(targetDraft.course)}">
+          <datalist id="courseList">
+            ${[...new Set(TASKS.map((t) => t.course))].map((c) => `<option value="${escapeHtml(c)}">`).join("")}
+          </datalist>
+        </div>
+        <div>
+          <label for="targetTitle">Judul Target</label>
+          <input type="text" id="targetTitle" placeholder="Contoh: Lebih mandiri di tugas Basis Data" value="${escapeHtml(targetDraft.title)}">
+        </div>
+      </div>
+      <div class="field-row">
+        <div>
+          <label for="targetStartCat">Titik Awal (saat ini)</label>
+          <select id="targetStartCat">
+            ${CATEGORY_ORDER.map((key) => `<option value="${key}" ${targetDraft.startCategory === key ? "selected" : ""}>${CATEGORY_META[key].short}</option>`).join("")}
+          </select>
+        </div>
+        <div>
+          <label for="targetEndCat">Target Akhir (minggu ke-19)</label>
+          <select id="targetEndCat">
+            ${CATEGORY_ORDER.map((key) => `<option value="${key}" ${targetDraft.endCategory === key ? "selected" : ""}>${CATEGORY_META[key].short}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <label for="targetStartDate">Tanggal Mulai (minggu ke-1)</label>
+      <input type="date" id="targetStartDate" value="${targetDraft.startDate}">
+
+      <button class="btn btn-primary btn-small" id="addTargetBtn">Buat Target</button>
+      ` : ""}
+
+      <div style="margin-top:20px;">
+        ${TARGETS.length === 0
+          ? `<p class="empty">Belum ada target semester.${isHistorical ? "" : " Buat target pertamamu di atas."}</p>`
+          : TARGETS.map((t) => `
+            <div class="target-card">
+              <div class="target-card-head">
+                <div>
+                  <h4>${escapeHtml(t.title)}</h4>
+                  <span class="course-tag">${escapeHtml(t.course)}</span>
+                </div>
+                ${!isHistorical ? `<button class="ledger-delete" data-deltarget="${t.id}" title="Hapus target">✕</button>` : ""}
+              </div>
+              ${buildTargetChartSVG(t, TASKS, viewDate)}
+            </div>
+          `).join("")}
+      </div>
     </div>
 
     <div class="card">
       <div class="card-head"><h2>Jurnal Refleksi</h2></div>
+      ${!isHistorical ? `
       <textarea id="journalInput" placeholder="Tulis refleksi singkat tentang penggunaan AI-mu hari ini…">${escapeHtml(journalDraft)}</textarea>
       <button class="btn btn-primary btn-small" id="addJournalBtn">Simpan Refleksi</button>
-      ${JOURNAL.length > 0 ? `
+      ` : `<p class="empty">Menampilkan jurnal sampai ${viewDate}.</p>`}
+      ${journalUpToView.length > 0 ? `
         <div style="margin-top:18px;">
-          ${JOURNAL.slice(0, 5).map((j) => `
+          ${journalUpToView.slice(0, 5).map((j) => `
             <div class="journal-entry">
               <div class="journal-date">${j.date}</div>
               <div>${escapeHtml(j.text)}</div>
@@ -269,8 +369,8 @@ function renderMahasiswaDashboard() {
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Peta Jaringan Semantik Jurnal</h2><span class="tag">${JOURNAL.length} entri dianalisis</span></div>
-      ${buildSemanticNetworkSVG(JOURNAL)}
+      <div class="card-head"><h2>Peta Jaringan Semantik Jurnal</h2><span class="tag">${journalUpToView.length} entri dianalisis</span></div>
+      ${buildSemanticNetworkSVG(journalUpToView)}
     </div>
   `;
 
@@ -279,17 +379,44 @@ function renderMahasiswaDashboard() {
 }
 
 function bindMahasiswaEvents() {
-  document.getElementById("taskCourse").addEventListener("input", (e) => (taskDraft.course = e.target.value));
-  document.getElementById("taskTitle").addEventListener("input", (e) => (taskDraft.title = e.target.value));
+  // Helper: pasang listener hanya kalau elemennya ada (form tertentu
+  // disembunyikan saat mode "Tinjau Waktu" historis aktif).
+  const on = (id, evt, handler) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(evt, handler);
+  };
 
-  document.getElementById("taskCatPillset").addEventListener("click", (e) => {
-    const pill = e.target.closest(".pill");
-    if (!pill) return;
-    taskDraft.category = pill.dataset.cat;
+  // ===== Slider Tinjau Waktu =====
+  on("timeSlider", "input", (e) => {
+    weeksAgo = Number(e.target.value);
     renderMahasiswaDashboard();
   });
+  const timePresetPillset = document.getElementById("timePresetPillset");
+  if (timePresetPillset) {
+    timePresetPillset.addEventListener("click", (e) => {
+      const pill = e.target.closest(".pill");
+      if (!pill) return;
+      weeksAgo = Number(pill.dataset.weeks);
+      renderMahasiswaDashboard();
+    });
+  }
 
-  document.getElementById("addTaskBtn").addEventListener("click", async () => {
+  // ===== Catat Aktivitas Baru =====
+  on("taskCourse", "input", (e) => (taskDraft.course = e.target.value));
+  on("taskTitle", "input", (e) => (taskDraft.title = e.target.value));
+
+  const taskCatPillset = document.getElementById("taskCatPillset");
+  if (taskCatPillset) {
+    taskCatPillset.addEventListener("click", (e) => {
+      const pill = e.target.closest(".pill");
+      if (!pill) return;
+      taskDraft.category = pill.dataset.cat;
+      renderMahasiswaDashboard();
+    });
+  }
+
+  on("addTaskBtn", "click", async () => {
+    if (weeksAgo > 0) return;
     if (!taskDraft.course.trim() || !taskDraft.title.trim()) {
       alert("Isi mata kuliah dan judul tugas dulu.");
       return;
@@ -302,14 +429,17 @@ function bindMahasiswaEvents() {
 
   root.querySelectorAll(".ledger-delete[data-id]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (weeksAgo > 0) return;
       await deleteTask(CURRENT_USER.uid, btn.dataset.id);
       TASKS = await getTasks(CURRENT_USER.uid);
       renderMahasiswaDashboard();
     });
   });
 
-  document.getElementById("ruleInput").addEventListener("input", (e) => (ruleDraft = e.target.value));
-  document.getElementById("addRuleBtn").addEventListener("click", async () => {
+  // ===== Aturan Pribadi =====
+  on("ruleInput", "input", (e) => (ruleDraft = e.target.value));
+  on("addRuleBtn", "click", async () => {
+    if (weeksAgo > 0) return;
     if (!ruleDraft.trim()) return;
     await addRule(CURRENT_USER.uid, ruleDraft.trim());
     ruleDraft = "";
@@ -319,6 +449,7 @@ function bindMahasiswaEvents() {
 
   root.querySelectorAll("[data-rule]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (weeksAgo > 0) return;
       await logRule(CURRENT_USER.uid, btn.dataset.rule, btn.dataset.followed === "true");
       RULE_LOGS = await getRuleLogs(CURRENT_USER.uid);
       renderMahasiswaDashboard();
@@ -327,6 +458,7 @@ function bindMahasiswaEvents() {
 
   root.querySelectorAll("[data-delrule]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (weeksAgo > 0) return;
       await deleteRule(CURRENT_USER.uid, btn.dataset.delrule);
       RULES = await getRules(CURRENT_USER.uid);
       RULE_LOGS = await getRuleLogs(CURRENT_USER.uid);
@@ -334,13 +466,43 @@ function bindMahasiswaEvents() {
     });
   });
 
-  document.getElementById("journalInput").addEventListener("input", (e) => (journalDraft = e.target.value));
-  document.getElementById("addJournalBtn").addEventListener("click", async () => {
+  // ===== Jurnal Refleksi =====
+  on("journalInput", "input", (e) => (journalDraft = e.target.value));
+  on("addJournalBtn", "click", async () => {
+    if (weeksAgo > 0) return;
     if (!journalDraft.trim()) return;
     await addJournalEntry(CURRENT_USER.uid, journalDraft.trim());
     journalDraft = "";
     JOURNAL = await getJournalEntries(CURRENT_USER.uid);
     renderMahasiswaDashboard();
+  });
+
+  // ===== Target Semester =====
+  on("targetCourse", "input", (e) => (targetDraft.course = e.target.value));
+  on("targetTitle", "input", (e) => (targetDraft.title = e.target.value));
+  on("targetStartCat", "change", (e) => (targetDraft.startCategory = e.target.value));
+  on("targetEndCat", "change", (e) => (targetDraft.endCategory = e.target.value));
+  on("targetStartDate", "change", (e) => (targetDraft.startDate = e.target.value));
+
+  on("addTargetBtn", "click", async () => {
+    if (weeksAgo > 0) return;
+    if (!targetDraft.course.trim() || !targetDraft.title.trim()) {
+      alert("Isi mata kuliah dan judul target dulu.");
+      return;
+    }
+    await addTarget(CURRENT_USER.uid, { ...targetDraft, course: targetDraft.course.trim(), title: targetDraft.title.trim() });
+    targetDraft = { course: "", title: "", startCategory: "sangat_bergantung", endCategory: "sangat_mandiri", startDate: todayStr() };
+    TARGETS = await getTargets(CURRENT_USER.uid);
+    renderMahasiswaDashboard();
+  });
+
+  root.querySelectorAll("[data-deltarget]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (weeksAgo > 0) return;
+      await deleteTarget(CURRENT_USER.uid, btn.dataset.deltarget);
+      TARGETS = await getTargets(CURRENT_USER.uid);
+      renderMahasiswaDashboard();
+    });
   });
 }
 
