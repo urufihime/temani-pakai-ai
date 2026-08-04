@@ -58,6 +58,13 @@
   vertical-align:middle;
 }
 
+/* ===== Slider Tinjau Waktu ===== */
+input[type="range"]{
+  accent-color: var(--ink-navy);
+  height: 4px;
+  margin: 8px 0;
+}
+
 /* ===== Gauge risiko ===== */
 .gauge-wrap{
   text-align:center;
@@ -256,3 +263,30 @@ table.class-table tr:hover td{background:var(--paper-2);cursor:pointer;}
 
 /* ===== Nav pintas dashboard mahasiswa (ke history/profile) ===== */
 .dash-shortcuts{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+
+/* ===== Target Semester ===== */
+.target-card{
+  border:1px solid var(--paper-line);
+  border-radius:4px;
+  padding:16px 18px;
+  margin-bottom:14px;
+  background:#fff;
+}
+.target-card-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:10px;
+  margin-bottom:10px;
+}
+.target-card-head h4{
+  font-family:'Fraunces',serif;
+  font-size:15px;
+  margin:0;
+  color:var(--ink-navy);
+}
+.target-card-head .course-tag{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10.5px;
+  color:#847d63;
+}
