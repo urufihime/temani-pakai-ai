@@ -260,3 +260,28 @@ export function listenChatMessages(convId, callback) {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
   });
 }
+
+/* ============================================================
+   TARGET SEMESTER — subkoleksi users/{uid}/targets
+   ============================================================ */
+
+export async function addTarget(uid, { course, title, startCategory, endCategory, startDate }) {
+  await addDoc(collection(db, "users", uid, "targets"), {
+    course,
+    title,
+    startCategory,   // key CATEGORY_ORDER, titik awal (self-assessment)
+    endCategory,     // key CATEGORY_ORDER, target di akhir semester (minggu 14)
+    startDate,        // yyyy-mm-dd, dianggap minggu ke-1
+    createdAt: serverTimestamp()
+  });
+}
+
+export async function getTargets(uid) {
+  const q = query(collection(db, "users", uid, "targets"), orderBy("createdAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function deleteTarget(uid, targetId) {
+  await deleteDoc(doc(db, "users", uid, "targets", targetId));
+}
