@@ -1,6 +1,6 @@
 import { requireAuth, logout } from "./authGuard.js";
-import { getUserProfile, updateUserProfileFields } from "./firestore.js";
-import { escapeHtml, QUIZ_LEVEL_COPY } from "./utils.js";
+import { getUserProfile, updateUserProfileFields, getTasks } from "./firestore.js";
+import { escapeHtml, computeCombinedRisk, RISK_COPY } from "./utils.js";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -12,23 +12,30 @@ document.getElementById("logoutBtn").addEventListener("click", logout);
 
 let CURRENT_USER = null;
 let PROFILE = null;
+let TASKS = [];
 
 requireAuth(async (user) => {
   CURRENT_USER = user;
   PROFILE = await getUserProfile(user.uid);
   document.getElementById("userGreeting").textContent = `${PROFILE.name} · ${PROFILE.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
+
+  if (PROFILE.role === "mahasiswa") {
+    TASKS = await getTasks(user.uid);
+  }
+
   render();
 });
 
 function render() {
   const isDosen = PROFILE.role === "dosen";
-  const assessmentCopy = PROFILE.assessmentDone ? QUIZ_LEVEL_COPY[PROFILE.assessmentLevel] : null;
+  const combinedRisk = PROFILE.assessmentDone ? computeCombinedRisk(PROFILE.assessmentScore, TASKS) : null;
 
   root.innerHTML = `
     <div class="card">
       <div class="card-head"><h2>Akun</h2></div>
+      <div class="profile-row"><span class="k">Nama Lengkap</span><span class="v">${escapeHtml(PROFILE.name)}</span></div>
       <div class="profile-row"><span class="k">Email</span><span class="v">${escapeHtml(PROFILE.email)}</span></div>
-      <div class="profile-row"><span class="k">Peran</span><span class="v">${isDosen ? "Dosen" : "Mahasiswa"}</span></div>
+      <div class="profile-row"><span class="k">Status</span><span class="v">${isDosen ? "Dosen" : "Mahasiswa"}</span></div>
 
       <div id="passwordMessage" class="banner auth-error" style="display:none;margin-top:16px;"></div>
 
@@ -69,7 +76,9 @@ function render() {
       <div class="card">
         <div class="card-head"><h2>Neraca Kemandirian</h2></div>
         ${PROFILE.assessmentDone
-          ? `<div class="profile-row"><span class="k">Hasil Terakhir</span><span class="v">${assessmentCopy.label} (${PROFILE.assessmentScore}/21)</span></div>
+          ? `<div class="profile-row"><span class="k">Status Neraca Kemandirian</span><span class="v">${RISK_COPY[combinedRisk.level].label}</span></div>
+             <div class="profile-row"><span class="k">Skor Kuis</span><span class="v">${PROFILE.assessmentScore}/21</span></div>
+             <p class="helptext" style="margin-top:10px;">Status ini sudah digabung dengan pola tugasmu minggu ini, sama seperti yang tampil di dashboard.</p>
              <a href="assessment.html" class="btn btn-ghost btn-small" style="text-decoration:none;display:inline-block;margin-top:12px;">Isi Ulang Asesmen</a>`
           : `<p class="empty">Belum diisi.</p>
              <a href="assessment.html" class="btn btn-primary" style="text-decoration:none;display:inline-block;">Isi Sekarang</a>`
