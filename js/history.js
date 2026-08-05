@@ -1,6 +1,20 @@
 import { requireAuth, logout } from "./authGuard.js";
-import { getUserProfile, getTasks, getJournalEntries } from "./firestore.js";
-import { escapeHtml, riskLevelFromCounts, RISK_COPY, CATEGORY_LABEL, CATEGORY_ORDER, CATEGORY_META } from "./utils.js";
+import { getUserProfile, getTasks, getJournalEntries, getRuleLogs, getTargets } from "./firestore.js";
+import {
+  escapeHtml,
+  todayStr,
+  daysAgoStr,
+  riskLevelFromCounts,
+  computeCombinedRisk,
+  buildGaugeSVG,
+  buildRuleComplianceSVG,
+  buildTargetChartSVG,
+  buildSemanticNetworkSVG,
+  RISK_COPY,
+  CATEGORY_LABEL,
+  CATEGORY_ORDER,
+  CATEGORY_META
+} from "./utils.js";
 
 const root = document.getElementById("root");
 document.getElementById("logoutBtn").addEventListener("click", logout);
@@ -9,7 +23,10 @@ let CURRENT_USER = null;
 let PROFILE = null;
 let TASKS = [];
 let JOURNAL = [];
+let RULE_LOGS = [];
+let TARGETS = [];
 let activeFilter = "semua";
+let weeksAgo = 0;
 
 requireAuth(async (user) => {
   CURRENT_USER = user;
@@ -26,9 +43,18 @@ requireAuth(async (user) => {
     return;
   }
 
-  [TASKS, JOURNAL] = await Promise.all([getTasks(CURRENT_USER.uid), getJournalEntries(CURRENT_USER.uid)]);
+  [TASKS, JOURNAL, RULE_LOGS, TARGETS] = await Promise.all([
+    getTasks(CURRENT_USER.uid),
+    getJournalEntries(CURRENT_USER.uid),
+    getRuleLogs(CURRENT_USER.uid),
+    getTargets(CURRENT_USER.uid)
+  ]);
   render();
 });
+
+function getViewDate() {
+  return weeksAgo === 0 ? todayStr() : daysAgoStr(weeksAgo * 7);
+}
 
 function getMonday(date) {
   const d = new Date(date);
@@ -43,8 +69,8 @@ function fmt(d) {
   return d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
 
-function buildWeeklyTrend() {
-  const currentMonday = getMonday(new Date());
+function buildWeeklyTrend(refDateStr) {
+  const currentMonday = getMonday(new Date(refDateStr + "T00:00:00"));
   const weeks = [];
   for (let i = 5; i >= 0; i--) {
     const start = new Date(currentMonday);
@@ -65,14 +91,48 @@ function buildWeeklyTrend() {
 }
 
 function render() {
-  const weeks = buildWeeklyTrend();
+  const viewDate = getViewDate();
+  const isHistorical = weeksAgo > 0;
+
+  const weeks = buildWeeklyTrend(viewDate);
   const maxTotal = Math.max(1, ...weeks.map((w) => w.total));
 
-  const filteredTasks = activeFilter === "semua" ? TASKS : TASKS.filter((t) => t.category === activeFilter);
+  const tasksUpToView = TASKS.filter((t) => t.date <= viewDate);
+  const journalUpToView = JOURNAL.filter((j) => j.date <= viewDate);
+  const filteredTasks = activeFilter === "semua" ? tasksUpToView : tasksUpToView.filter((t) => t.category === activeFilter);
+
+  const risk = computeCombinedRisk(PROFILE.assessmentScore, TASKS, viewDate);
+  const riskCopy = RISK_COPY[risk.level];
+
+  const sliderPresets = [
+    { w: 0, label: "Hari Ini" },
+    { w: 1, label: "1 Minggu Lalu" },
+    { w: 4, label: "1 Bulan Lalu" },
+    { w: 8, label: "2 Bulan Lalu" },
+    { w: 12, label: "3 Bulan Lalu" }
+  ];
 
   root.innerHTML = `
     <div class="card">
-      <div class="card-head"><h2>Tren Risiko Mingguan</h2><span class="tag">6 minggu terakhir</span></div>
+      <div class="card-head"><h2>Tinjau Waktu</h2><span class="tag">${isHistorical ? `Per ${viewDate}` : "Hari ini"}</span></div>
+      <input type="range" id="timeSlider" min="0" max="24" step="1" value="${weeksAgo}" style="width:100%;">
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;font-family:'IBM Plex Mono',monospace;color:#847d63;margin-top:2px;">
+        <span>24 minggu lalu</span><span>Hari ini</span>
+      </div>
+      <div class="pillset" id="timePresetPillset" style="margin-top:12px;">
+        ${sliderPresets.map((p) => `<button type="button" class="pill" data-weeks="${p.w}" data-active="${weeksAgo === p.w}">${p.label}</button>`).join("")}
+      </div>
+      ${isHistorical ? `<p class="note" style="margin-top:12px;">Semua bagian di bawah menampilkan kondisi per <strong>${viewDate}</strong> (${weeksAgo} minggu lalu), dihitung dari data sampai tanggal itu saja.</p>` : ""}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Peringatan Dini</h2><span class="tag">${isHistorical ? `Per ${viewDate}` : "Saat ini"}</span></div>
+      <div class="gauge-wrap">${buildGaugeSVG(risk.continuous / 3)}</div>
+      <p class="gauge-level-line">Level: <strong>${riskCopy.label.replace(/^.*: /, "") || riskCopy.label}</strong> · ${risk.veryCount}/${risk.weekTotal} tugas 7 hari itu "Sangat Bergantung"</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Tren Risiko Mingguan</h2><span class="tag">6 minggu s/d ${isHistorical ? viewDate : "sekarang"}</span></div>
       ${weeks.map((w) => `
         <div class="week-row">
           <span class="week-label">${w.label}${w.isCurrent ? " (ini)" : ""}</span>
@@ -84,7 +144,28 @@ function render() {
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Semua Tugas</h2><span class="tag">${TASKS.length} total</span></div>
+      <div class="card-head"><h2>Kepatuhan Aturan</h2><span class="tag">7 hari s/d ${isHistorical ? viewDate : "sekarang"}</span></div>
+      ${buildRuleComplianceSVG(RULE_LOGS, 7, viewDate)}
+    </div>
+
+    ${TARGETS.length > 0 ? `
+    <div class="card">
+      <div class="card-head"><h2>Target Semester</h2><span class="tag">${TARGETS.length} target</span></div>
+      ${TARGETS.map((t) => `
+        <div class="target-card">
+          <div class="target-card-head">
+            <div>
+              <h4>${escapeHtml(t.title)}</h4>
+              <span class="course-tag">${escapeHtml(t.course)}</span>
+            </div>
+          </div>
+          ${buildTargetChartSVG(t, TASKS, viewDate)}
+        </div>
+      `).join("")}
+    </div>` : ""}
+
+    <div class="card">
+      <div class="card-head"><h2>Semua Tugas</h2><span class="tag">${tasksUpToView.length}${isHistorical ? ` s/d ${viewDate}` : " total"}</span></div>
       <div class="pillset filter-pillset" id="filterPillset">
         <button type="button" class="pill" data-filter="semua" data-active="${activeFilter === "semua"}">Semua</button>
         ${CATEGORY_ORDER.map((key) => `
@@ -92,7 +173,7 @@ function render() {
         `).join("")}
       </div>
       ${filteredTasks.length === 0
-        ? `<p class="empty">Tidak ada tugas pada kategori ini.</p>`
+        ? `<p class="empty">Tidak ada tugas pada kategori/rentang waktu ini.</p>`
         : filteredTasks.map((t) => `
           <div class="ledger-row">
             <span class="ledger-date">${t.date}</span>
@@ -104,18 +185,33 @@ function render() {
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Riwayat Jurnal</h2><span class="tag">${JOURNAL.length} entri</span></div>
-      ${JOURNAL.length === 0
-        ? `<p class="empty">Belum ada refleksi jurnal.</p>`
-        : JOURNAL.map((j) => `
+      <div class="card-head"><h2>Riwayat Jurnal</h2><span class="tag">${journalUpToView.length} entri</span></div>
+      ${journalUpToView.length === 0
+        ? `<p class="empty">Belum ada refleksi jurnal${isHistorical ? " sampai tanggal ini" : ""}.</p>`
+        : journalUpToView.map((j) => `
           <div class="journal-entry">
             <div class="journal-date">${j.date}</div>
             <div>${escapeHtml(j.text)}</div>
           </div>
         `).join("")}
     </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Peta Jaringan Semantik Jurnal</h2><span class="tag">${journalUpToView.length} entri dianalisis</span></div>
+      ${buildSemanticNetworkSVG(journalUpToView)}
+    </div>
   `;
 
+  document.getElementById("timeSlider").addEventListener("input", (e) => {
+    weeksAgo = Number(e.target.value);
+    render();
+  });
+  document.getElementById("timePresetPillset").addEventListener("click", (e) => {
+    const pill = e.target.closest(".pill");
+    if (!pill) return;
+    weeksAgo = Number(pill.dataset.weeks);
+    render();
+  });
   document.getElementById("filterPillset").addEventListener("click", (e) => {
     const pill = e.target.closest(".pill");
     if (!pill) return;

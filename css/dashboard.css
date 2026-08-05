@@ -58,6 +58,34 @@
   vertical-align:middle;
 }
 
+/* ===== Tab dashboard mahasiswa ===== */
+.dash-tabs{
+  display:flex;
+  gap:4px;
+  flex-wrap:wrap;
+  border-bottom:1.5px solid var(--paper-line);
+  margin-bottom:20px;
+}
+.tab-btn{
+  background:none;
+  border:none;
+  border-bottom:2.5px solid transparent;
+  padding:10px 14px 12px;
+  margin-bottom:-1.5px;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12px;
+  letter-spacing:.02em;
+  color:#847d63;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.tab-btn:hover{color:var(--ink-navy);}
+.tab-btn[data-active="true"]{
+  color:var(--ink-navy);
+  font-weight:600;
+  border-bottom-color:var(--gold);
+}
+
 /* ===== Slider Tinjau Waktu ===== */
 input[type="range"]{
   accent-color: var(--ink-navy);
