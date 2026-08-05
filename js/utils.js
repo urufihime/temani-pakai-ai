@@ -446,10 +446,10 @@ export function buildSemanticNetworkSVG(entries) {
    terkait, divisualisasikan sebagai diagram garis.
    ============================================================ */
 
-const SEMESTER_WEEKS = 19;
+export const SEMESTER_WEEKS = 19;
 
 // Peta 19 minggu: minggu mana pertemuan (P1-P14), mana UTS/UAS/evaluasi.
-const WEEK_TYPES = (() => {
+export const WEEK_TYPES = (() => {
   const arr = [];
   let pNum = 0;
   for (let w = 1; w <= SEMESTER_WEEKS; w++) {
@@ -487,8 +487,14 @@ export function buildTargetChartSVG(target, tasks, refDateStr) {
     targetPoints.push(startVal + ((endVal - startVal) * i) / (SEMESTER_WEEKS - 1));
   }
 
+  const manualActuals = target.weeklyActuals || {};
   const actualPoints = [];
   for (let i = 0; i < SEMESTER_WEEKS; i++) {
+    const weekNum = i + 1;
+    if (manualActuals[weekNum] !== undefined && manualActuals[weekNum] !== null) {
+      actualPoints.push(independenceValue(manualActuals[weekNum]));
+      continue;
+    }
     const weekStartStr = new Date(startDate.getTime() + i * msPerWeek).toISOString().slice(0, 10);
     const weekEndStr = new Date(startDate.getTime() + (i + 1) * msPerWeek).toISOString().slice(0, 10);
     const weekTasks = tasksUpToRef.filter(

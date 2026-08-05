@@ -285,3 +285,10 @@ export async function getTargets(uid) {
 export async function deleteTarget(uid, targetId) {
   await deleteDoc(doc(db, "users", uid, "targets", targetId));
 }
+
+// Isi/ubah capaian manual untuk minggu tertentu (1-19) pada satu target semester.
+export async function updateTargetWeeklyActual(uid, targetId, week, categoryKey) {
+  await updateDoc(doc(db, "users", uid, "targets", targetId), {
+    [`weeklyActuals.${week}`]: categoryKey
+  });
+}

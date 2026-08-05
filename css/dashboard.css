@@ -318,3 +318,12 @@ table.class-table tr:hover td{background:var(--paper-2);cursor:pointer;}
   font-size:10.5px;
   color:#847d63;
 }
+.weekly-input-row{
+  margin-top:14px;
+  padding-top:14px;
+  border-top:1px dashed var(--paper-line);
+}
+.weekly-input-row select{
+  padding:8px 10px;
+  font-size:13px;
+}
