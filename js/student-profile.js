@@ -88,7 +88,7 @@ function render(student, tasks, journal) {
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Riwayat Tugas</h2><span class="tag">${tasks.length} total</span></div>
+      <div class="card-head"><h2>Riwayat Aktivitas</h2><span class="tag">${tasks.length} total</span></div>
       ${tasks.length === 0
         ? `<p class="empty">Belum ada tugas tercatat.</p>`
         : tasks.map((t) => `

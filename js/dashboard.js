@@ -17,9 +17,10 @@ import {
   listenUnreadConversations,
   addTarget,
   getTargets,
-  deleteTarget
+  deleteTarget,
+  updateTargetWeeklyActual
 } from "./firestore.js";
-import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG, buildSemanticNetworkSVG, buildRuleComplianceSVG, buildTargetChartSVG, CATEGORY_ORDER, CATEGORY_META, CATEGORY_LABEL } from "./utils.js";
+import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG, buildSemanticNetworkSVG, buildRuleComplianceSVG, buildTargetChartSVG, CATEGORY_ORDER, CATEGORY_META, CATEGORY_LABEL, WEEK_TYPES } from "./utils.js";
 
 const root = document.getElementById("root");
 const mastheadTitle = document.getElementById("mastheadTitle");
@@ -263,11 +264,11 @@ function renderAktivitasTab() {
         `).join("")}
       </div>
       <p class="helptext">${CATEGORY_META[taskDraft.category].desc}</p>
-      <button class="btn btn-primary" id="addTaskBtn">Simpan Tugas</button>
+      <button class="btn btn-primary" id="addTaskBtn">Simpan Aktivitas</button>
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Riwayat Tugas</h2><span class="tag">${TASKS.length} total</span></div>
+      <div class="card-head"><h2>Riwayat Aktivitas</h2><span class="tag">${TASKS.length} total</span></div>
       ${recentTasks.length === 0
         ? `<p class="empty">Belum ada tugas dicatat.</p>`
         : recentTasks.map((t) => `
@@ -309,6 +310,11 @@ function renderAktivitasTab() {
 
 /* ===== Tab: Target Semester ===== */
 function renderTargetTab() {
+  const matchedTarget = TARGETS.find(
+    (t) => t.course.trim().toLowerCase() === targetDraft.course.trim().toLowerCase() && targetDraft.course.trim() !== ""
+  );
+  const courseOptions = [...new Set([...TASKS.map((t) => t.course), ...TARGETS.map((t) => t.course)])];
+
   return `
     <div class="card">
       <div class="card-head"><h2>Target Individu dalam Satu Semester</h2><span class="tag">19 minggu / mata kuliah</span></div>
@@ -319,12 +325,13 @@ function renderTargetTab() {
           <label for="targetCourse">Mata Kuliah</label>
           <input type="text" id="targetCourse" list="courseList" placeholder="Contoh: Basis Data" value="${escapeHtml(targetDraft.course)}">
           <datalist id="courseList">
-            ${[...new Set(TASKS.map((t) => t.course))].map((c) => `<option value="${escapeHtml(c)}">`).join("")}
+            ${courseOptions.map((c) => `<option value="${escapeHtml(c)}">`).join("")}
           </datalist>
         </div>
         <div>
           <label for="targetTitle">Judul Target</label>
-          <input type="text" id="targetTitle" placeholder="Contoh: Lebih mandiri di tugas Basis Data" value="${escapeHtml(targetDraft.title)}">
+          <input type="text" id="targetTitle" placeholder="Contoh: Lebih mandiri di tugas Basis Data" value="${escapeHtml(matchedTarget ? matchedTarget.title : targetDraft.title)}" ${matchedTarget ? "readonly" : ""}>
+          ${matchedTarget ? `<p class="helptext" style="margin-top:-8px;">Mata kuliah ini sudah punya target — judul disamakan otomatis dengan yang pertama kali dibuat.</p>` : ""}
         </div>
       </div>
       <div class="field-row">
@@ -359,6 +366,22 @@ function renderTargetTab() {
                 <button class="ledger-delete" data-deltarget="${t.id}" title="Hapus target">✕</button>
               </div>
               ${buildTargetChartSVG(t, TASKS)}
+
+              <div class="weekly-input-row" data-target-id="${t.id}">
+                <label style="margin-bottom:6px;">Isi Capaian Minggu Tertentu (manual, opsional)</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                  <select class="weekly-week-select" style="margin-bottom:0;width:auto;">
+                    ${WEEK_TYPES.map((info, idx) => `<option value="${idx + 1}">Minggu ${idx + 1} (${info.label})</option>`).join("")}
+                  </select>
+                  <select class="weekly-cat-select" style="margin-bottom:0;width:auto;">
+                    ${CATEGORY_ORDER.map((key) => `<option value="${key}">${CATEGORY_META[key].short}</option>`).join("")}
+                  </select>
+                  <button type="button" class="btn btn-ghost btn-small" data-savetargetweek="${t.id}">Simpan</button>
+                </div>
+                ${t.weeklyActuals && Object.keys(t.weeklyActuals).length > 0
+                  ? `<p class="note" style="margin-top:8px;">Sudah diisi manual untuk minggu ke: ${Object.keys(t.weeklyActuals).sort((a, b) => a - b).join(", ")}.</p>`
+                  : ""}
+              </div>
             </div>
           `).join("")}
       </div>
@@ -478,6 +501,7 @@ function bindMahasiswaEvents() {
 
   // ===== Target Semester =====
   on("targetCourse", "input", (e) => (targetDraft.course = e.target.value));
+  on("targetCourse", "change", () => renderMahasiswaDashboard()); // deteksi target mata kuliah yang sudah ada
   on("targetTitle", "input", (e) => (targetDraft.title = e.target.value));
   on("targetStartCat", "change", (e) => (targetDraft.startCategory = e.target.value));
   on("targetEndCat", "change", (e) => (targetDraft.endCategory = e.target.value));
@@ -488,7 +512,14 @@ function bindMahasiswaEvents() {
       alert("Isi mata kuliah dan judul target dulu.");
       return;
     }
-    await addTarget(CURRENT_USER.uid, { ...targetDraft, course: targetDraft.course.trim(), title: targetDraft.title.trim() });
+    // Kalau mata kuliah ini sudah pernah ditarget, paksa judulnya sama persis
+    // dengan yang pertama kali dibuat (jaga konsistensi).
+    const existing = TARGETS.find(
+      (t) => t.course.trim().toLowerCase() === targetDraft.course.trim().toLowerCase()
+    );
+    const finalTitle = existing ? existing.title : targetDraft.title.trim();
+
+    await addTarget(CURRENT_USER.uid, { ...targetDraft, course: targetDraft.course.trim(), title: finalTitle });
     targetDraft = { course: "", title: "", startCategory: "sangat_bergantung", endCategory: "sangat_mandiri", startDate: todayStr() };
     TARGETS = await getTargets(CURRENT_USER.uid);
     renderMahasiswaDashboard();
@@ -497,6 +528,18 @@ function bindMahasiswaEvents() {
   root.querySelectorAll("[data-deltarget]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       await deleteTarget(CURRENT_USER.uid, btn.dataset.deltarget);
+      TARGETS = await getTargets(CURRENT_USER.uid);
+      renderMahasiswaDashboard();
+    });
+  });
+
+  root.querySelectorAll("[data-savetargetweek]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const targetId = btn.dataset.savetargetweek;
+      const wrap = btn.closest(".weekly-input-row");
+      const week = wrap.querySelector(".weekly-week-select").value;
+      const category = wrap.querySelector(".weekly-cat-select").value;
+      await updateTargetWeeklyActual(CURRENT_USER.uid, targetId, week, category);
       TARGETS = await getTargets(CURRENT_USER.uid);
       renderMahasiswaDashboard();
     });
@@ -605,7 +648,7 @@ function openStudentModal(uid, withRisk) {
 
         ${banner}
 
-        <h3 style="font-size:14px;margin:0 0 10px;">Tugas 7 Hari Terakhir</h3>
+        <h3 style="font-size:14px;margin:0 0 10px;">Aktivitas 7 Hari Terakhir</h3>
         ${tasks.length === 0 ? `<p class="empty">Belum ada tugas tercatat.</p>` : tasks.map((t) => `
           <div class="ledger-row">
             <span class="ledger-date">${t.date}</span>

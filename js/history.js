@@ -165,7 +165,7 @@ function render() {
     </div>` : ""}
 
     <div class="card">
-      <div class="card-head"><h2>Semua Tugas</h2><span class="tag">${tasksUpToView.length}${isHistorical ? ` s/d ${viewDate}` : " total"}</span></div>
+      <div class="card-head"><h2>Semua Aktivitas</h2><span class="tag">${tasksUpToView.length}${isHistorical ? ` s/d ${viewDate}` : " total"}</span></div>
       <div class="pillset filter-pillset" id="filterPillset">
         <button type="button" class="pill" data-filter="semua" data-active="${activeFilter === "semua"}">Semua</button>
         ${CATEGORY_ORDER.map((key) => `
