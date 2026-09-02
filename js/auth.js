@@ -184,6 +184,14 @@ if (registerForm) {
       showError("Konfirmasi password tidak cocok.");
       return;
     }
+    if (!name) {
+      showError("Nama lengkap tidak boleh kosong.");
+      return;
+    }
+    if (!institusiId) {
+      showError("Kode institusi tidak boleh kosong. Minta kode ini ke admin institusimu.");
+      return;
+    }
 
     setLoading(registerBtn, true, "Memproses…", "Daftar");
 

@@ -312,6 +312,7 @@ export async function updateTargetWeeklyActual(uid, targetId, week, categoryKey)
    ============================================================ */
 
 export async function createInstitution(kodeInstitusi, { nama, status, expiresAt, catatan }) {
+  if (!kodeInstitusi) throw new Error("Kode institusi tidak boleh kosong.");
   await setDoc(doc(db, "institutions", kodeInstitusi), {
     nama,
     status: status || "aktif", // "aktif" | "nonaktif"
@@ -322,6 +323,7 @@ export async function createInstitution(kodeInstitusi, { nama, status, expiresAt
 }
 
 export async function getInstitution(kodeInstitusi) {
+  if (!kodeInstitusi) return null;
   const snap = await getDoc(doc(db, "institutions", kodeInstitusi));
   return snap.exists() ? { id: kodeInstitusi, ...snap.data() } : null;
 }
