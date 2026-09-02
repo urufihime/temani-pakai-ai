@@ -19,11 +19,12 @@ import {
    PROFIL PENGGUNA (koleksi "users", 1 dokumen per akun)
    ============================================================ */
 
-export async function createUserProfile(uid, { name, email, role }) {
+export async function createUserProfile(uid, { name, email, role, institusiId }) {
   await setDoc(doc(db, "users", uid), {
     name,
     email,
-    role,               // "mahasiswa" | "dosen"
+    role,               // "mahasiswa" | "dosen" | "admin"
+    institusiId: institusiId || null, // kode institusi (SaaS multi-tenant)
     kelas: null,        // kode kelas mahasiswa, atau kelas yang diampu dosen
     assessmentDone: false,
     assessmentScore: 0,
@@ -147,12 +148,13 @@ export async function getJournalEntries(uid) {
    UNTUK DOSEN: daftar mahasiswa dalam satu kelas + tugas mereka
    ============================================================ */
 
-export async function getStudentsByKelas(kelas) {
-  const q = query(
-    collection(db, "users"),
+export async function getStudentsByKelas(kelas, institusiId) {
+  const clauses = [
     where("role", "==", "mahasiswa"),
     where("kelas", "==", kelas)
-  );
+  ];
+  if (institusiId) clauses.push(where("institusiId", "==", institusiId));
+  const q = query(collection(db, "users"), ...clauses);
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 }
@@ -172,14 +174,25 @@ export async function getRecentTasks(uid, days = 7) {
    ============================================================ */
 
 // Untuk mahasiswa: cari dosen yang mengampu kode kelas tertentu.
-export async function getDosenByKelas(kelas) {
-  const q = query(
-    collection(db, "users"),
+// Dosen bisa punya sampai 3 mata kuliah/kelas, disimpan di kelasCodes (array).
+export async function getDosenByKelas(kelas, institusiId) {
+  const clauses = [
     where("role", "==", "dosen"),
-    where("kelas", "==", kelas)
-  );
+    where("kelasCodes", "array-contains", kelas)
+  ];
+  if (institusiId) clauses.push(where("institusiId", "==", institusiId));
+  const q = query(collection(db, "users"), ...clauses);
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+}
+
+// Simpan daftar mata kuliah/kelas dosen (maksimal 3). kelasList: [{kodeKelas, mataKuliah}]
+export async function updateDosenKelasList(uid, kelasList) {
+  const trimmed = (kelasList || []).slice(0, 3);
+  await updateDoc(doc(db, "users", uid), {
+    kelasList: trimmed,
+    kelasCodes: trimmed.map((k) => k.kodeKelas)
+  });
 }
 
 // ID percakapan deterministik: gabungan 2 uid yang diurutkan,
@@ -291,4 +304,44 @@ export async function updateTargetWeeklyActual(uid, targetId, week, categoryKey)
   await updateDoc(doc(db, "users", uid, "targets", targetId), {
     [`weeklyActuals.${week}`]: categoryKey
   });
+}
+
+/* ============================================================
+   INSTITUSI — untuk model SaaS multi-institusi.
+   Dokumen ID = kode institusi itu sendiri (unik otomatis).
+   ============================================================ */
+
+export async function createInstitution(kodeInstitusi, { nama, status, expiresAt, catatan }) {
+  await setDoc(doc(db, "institutions", kodeInstitusi), {
+    nama,
+    status: status || "aktif", // "aktif" | "nonaktif"
+    expiresAt: expiresAt || null, // yyyy-mm-dd atau null = tanpa batas waktu
+    catatan: catatan || "",
+    createdAt: serverTimestamp()
+  });
+}
+
+export async function getInstitution(kodeInstitusi) {
+  const snap = await getDoc(doc(db, "institutions", kodeInstitusi));
+  return snap.exists() ? { id: kodeInstitusi, ...snap.data() } : null;
+}
+
+export async function getAllInstitutions() {
+  const snap = await getDocs(collection(db, "institutions"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function updateInstitution(kodeInstitusi, fields) {
+  await updateDoc(doc(db, "institutions", kodeInstitusi), fields);
+}
+
+export async function deleteInstitution(kodeInstitusi) {
+  await deleteDoc(doc(db, "institutions", kodeInstitusi));
+}
+
+// Berapa banyak user (mahasiswa+dosen) terdaftar di satu institusi.
+export async function countUsersInInstitution(kodeInstitusi) {
+  const q = query(collection(db, "users"), where("institusiId", "==", kodeInstitusi));
+  const snap = await getDocs(q);
+  return snap.size;
 }

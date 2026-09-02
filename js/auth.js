@@ -2,9 +2,10 @@ import { auth } from "./firebase.js";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import { createUserProfile } from "./firestore.js";
+import { createUserProfile, getInstitution, getUserProfile } from "./firestore.js";
 
 /* ============================================================
    Helper tampilkan error dalam bentuk banner
@@ -33,7 +34,8 @@ function translateAuthError(error) {
     "auth/invalid-credential": "Email atau password salah.",
     "auth/email-already-in-use": "Email ini sudah terdaftar. Coba masuk saja.",
     "auth/weak-password": "Password minimal 6 karakter.",
-    "auth/too-many-requests": "Terlalu banyak percobaan. Coba lagi sebentar lagi."
+    "auth/too-many-requests": "Terlalu banyak percobaan. Coba lagi sebentar lagi.",
+    "auth/missing-email": "Masukkan email dulu."
   };
   return map[error.code] || "Terjadi kesalahan. Silakan coba lagi.";
 }
@@ -61,8 +63,9 @@ if (loginForm) {
     setLoading(loginBtn, true, "Memproses…", "Masuk");
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      window.location.href = "dashboard.html";
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const profile = await getUserProfile(userCredential.user.uid);
+      window.location.href = profile && profile.role === "admin" ? "admin.html" : "dashboard.html";
     } catch (error) {
       console.error(error);
       showError(translateAuthError(error));
@@ -71,6 +74,76 @@ if (loginForm) {
   });
 }
 
+/* ============================================================
+   LUPA PASSWORD (login.html)
+   ============================================================ */
+const loginView = document.getElementById("loginView");
+const resetView = document.getElementById("resetView");
+const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+const backToLoginLink = document.getElementById("backToLoginLink");
+const resetForm = document.getElementById("resetForm");
+const resetMessage = document.getElementById("resetMessage");
+
+function showResetMessage(message, isSuccess) {
+  if (!resetMessage) return;
+  resetMessage.textContent = message;
+  resetMessage.classList.remove("banner-error", "banner-success");
+  resetMessage.classList.add(isSuccess ? "banner-success" : "banner-error", "show");
+}
+
+function clearResetMessage() {
+  if (!resetMessage) return;
+  resetMessage.textContent = "";
+  resetMessage.classList.remove("show", "banner-error", "banner-success");
+}
+
+if (forgotPasswordLink) {
+  forgotPasswordLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    clearError();
+    clearResetMessage();
+    loginView.style.display = "none";
+    resetView.style.display = "block";
+  });
+}
+
+if (backToLoginLink) {
+  backToLoginLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    clearResetMessage();
+    resetView.style.display = "none";
+    loginView.style.display = "block";
+  });
+}
+
+if (resetForm) {
+  resetForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearResetMessage();
+
+    const email = document.getElementById("resetEmail").value.trim();
+    const resetBtn = document.getElementById("resetBtn");
+
+    setLoading(resetBtn, true, "Mengirim…", "Kirim Link Reset");
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showResetMessage(
+        `Link reset password sudah dikirim ke ${email}. Cek inbox (dan folder spam) lalu ikuti instruksinya.`,
+        true
+      );
+      resetForm.reset();
+    } catch (error) {
+      console.error(error);
+      const message = error.code === "auth/user-not-found"
+        ? "Email ini belum terdaftar. Periksa lagi atau daftar akun baru."
+        : translateAuthError(error);
+      showResetMessage(message, false);
+    } finally {
+      setLoading(resetBtn, false, "Mengirim…", "Kirim Link Reset");
+    }
+  });
+}
 /* ============================================================
    REGISTER (register.html)
    ============================================================ */
@@ -100,6 +173,7 @@ if (registerForm) {
     clearError();
 
     const name = document.getElementById("name").value.trim();
+    const institusiId = document.getElementById("institusiId").value.trim();
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
     const confirmPassword = document.getElementById("confirmPassword").value;
@@ -114,9 +188,26 @@ if (registerForm) {
     setLoading(registerBtn, true, "Memproses…", "Daftar");
 
     try {
+      // Validasi kode institusi dulu SEBELUM bikin akun Firebase Auth,
+      // supaya tidak ada akun "nyangkut" tanpa institusi yang valid.
+      const inst = await getInstitution(institusiId);
+      const today = new Date().toISOString().slice(0, 10);
+      const instActive = inst && inst.status === "aktif" && (!inst.expiresAt || inst.expiresAt >= today);
+
+      if (!inst) {
+        showError("Kode institusi tidak ditemukan. Periksa lagi kode dari admin institusimu.");
+        setLoading(registerBtn, false, "Memproses…", "Daftar");
+        return;
+      }
+      if (!instActive) {
+        showError("Institusi ini belum aktif atau langganannya sudah berakhir. Hubungi admin institusimu.");
+        setLoading(registerBtn, false, "Memproses…", "Daftar");
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName: name });
-      await createUserProfile(userCredential.user.uid, { name, email, role });
+      await createUserProfile(userCredential.user.uid, { name, email, role, institusiId });
 
       window.location.href = "dashboard.html";
     } catch (error) {

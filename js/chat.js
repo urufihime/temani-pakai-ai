@@ -1,4 +1,4 @@
-import { requireAuth, logout } from "./authGuard.js";
+import { requireAuth, logout, blockIfInstitutionInactive } from "./authGuard.js";
 import {
   getUserProfile,
   getDosenByKelas,
@@ -27,9 +27,15 @@ let UNREAD_CONV_IDS = new Set();
 requireAuth(async (user) => {
   CURRENT_USER = user;
   PROFILE = await getUserProfile(user.uid);
+  if (await blockIfInstitutionInactive(root, PROFILE)) return;
+
   document.getElementById("userGreeting").textContent = `${PROFILE.name} · ${PROFILE.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
 
-  if (!PROFILE.kelas) {
+  const belumSetup = PROFILE.role === "dosen"
+    ? !PROFILE.kelasList || PROFILE.kelasList.length === 0
+    : !PROFILE.kelas;
+
+  if (belumSetup) {
     root.innerHTML = `
       <div class="card">
         <p class="empty">Selesaikan setup kode kelas dulu di dashboard sebelum bisa mulai chat.</p>
@@ -39,9 +45,15 @@ requireAuth(async (user) => {
     return;
   }
 
-  CONTACTS = PROFILE.role === "mahasiswa"
-    ? await getDosenByKelas(PROFILE.kelas)
-    : await getStudentsByKelas(PROFILE.kelas);
+  if (PROFILE.role === "mahasiswa") {
+    CONTACTS = await getDosenByKelas(PROFILE.kelas, PROFILE.institusiId);
+  } else {
+    // Gabungkan mahasiswa dari semua mata kuliah/kelas dosen (maks 3), tanpa duplikat.
+    const lists = await Promise.all(PROFILE.kelasList.map((k) => getStudentsByKelas(k.kodeKelas, PROFILE.institusiId)));
+    const seen = new Map();
+    lists.flat().forEach((s) => seen.set(s.uid, s));
+    CONTACTS = [...seen.values()];
+  }
 
   await renderLayout();
 
@@ -56,10 +68,14 @@ async function renderLayout() {
     CONTACTS.map((c) => getConversationMeta(getConversationId(CURRENT_USER.uid, c.uid)))
   );
 
+  const sidebarHead = PROFILE.role === "mahasiswa"
+    ? "Dosen Kelasmu"
+    : `Mahasiswa · ${PROFILE.kelasList.map((k) => escapeHtml(k.mataKuliah)).join(", ")}`;
+
   root.innerHTML = `
     <div class="chat-layout">
       <div class="chat-sidebar" id="chatSidebar">
-        <div class="chat-sidebar-head">${PROFILE.role === "mahasiswa" ? "Dosen Kelasmu" : `Mahasiswa · ${escapeHtml(PROFILE.kelas)}`}</div>
+        <div class="chat-sidebar-head">${sidebarHead}</div>
         ${CONTACTS.length === 0
           ? `<p class="empty" style="padding:16px;">${PROFILE.role === "mahasiswa" ? "Belum ada dosen terdaftar di kelasmu." : "Belum ada mahasiswa di kelasmu."}</p>`
           : CONTACTS.map((c, i) => `
@@ -103,7 +119,7 @@ async function openConversation(contact) {
   ACTIVE_CONV_ID = await ensureConversation(
     CURRENT_USER.uid, PROFILE.name,
     contact.uid, contact.name,
-    PROFILE.kelas
+    PROFILE.role === "mahasiswa" ? PROFILE.kelas : contact.kelas
   );
 
   const chatMain = document.getElementById("chatMain");

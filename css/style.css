@@ -209,3 +209,12 @@ textarea{resize:vertical;min-height:70px;}
 @media (prefers-reduced-motion: reduce){
   *{transition:none !important;animation:none !important;}
 }
+
+/* ===== Footer pengembang (semua halaman) ===== */
+.app-footer{
+  text-align:center;
+  padding:20px 20px 28px;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  color:#a8a08a;
+}

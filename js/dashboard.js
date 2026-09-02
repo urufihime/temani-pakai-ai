@@ -1,4 +1,4 @@
-import { requireAuth, logout } from "./authGuard.js";
+import { requireAuth, logout, blockIfInstitutionInactive } from "./authGuard.js";
 import {
   getUserProfile,
   updateUserKelas,
@@ -18,7 +18,8 @@ import {
   addTarget,
   getTargets,
   deleteTarget,
-  updateTargetWeeklyActual
+  updateTargetWeeklyActual,
+  updateDosenKelasList
 } from "./firestore.js";
 import { escapeHtml, todayStr, RISK_COPY, buildGaugeSVG, computeCombinedRisk, buildWeekChartSVG, buildSemanticNetworkSVG, buildRuleComplianceSVG, buildTargetChartSVG, CATEGORY_ORDER, CATEGORY_META, CATEGORY_LABEL, WEEK_TYPES } from "./utils.js";
 
@@ -29,6 +30,7 @@ document.getElementById("logoutBtn").addEventListener("click", logout);
 
 let CURRENT_USER = null;
 let PROFILE = null;
+let dosenKelasDraft = [{ mataKuliah: "", kodeKelas: "" }];
 
 // data mahasiswa
 let TASKS = [];
@@ -43,11 +45,13 @@ let targetDraft = { course: "", title: "", startCategory: "sangat_bergantung", e
 
 // tab aktif dashboard mahasiswa
 let activeTab = "ringkasan";
+let semanticMetric = "frequency";
 
 // data dosen
-let CLASS_STUDENTS = [];
+let CLASS_STUDENTS_BY_KELAS = {};
 let STUDENT_TASKS = {};
 let SELECTED_STUDENT_UID = null;
+let activeDosenKelas = null;
 
 // notifikasi chat
 let unreadChatCount = 0;
@@ -76,6 +80,7 @@ requireAuth(async (user) => {
     root.innerHTML = `<p class="empty">Profil tidak ditemukan. Coba masuk ulang.</p>`;
     return;
   }
+  if (await blockIfInstitutionInactive(root, PROFILE)) return;
 
   userGreeting.textContent = `${PROFILE.name} · ${PROFILE.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
 
@@ -88,7 +93,11 @@ requireAuth(async (user) => {
 });
 
 async function route() {
-  if (!PROFILE.kelas) {
+  const needsSetup = PROFILE.role === "dosen"
+    ? !PROFILE.kelasList || PROFILE.kelasList.length === 0
+    : !PROFILE.kelas;
+
+  if (needsSetup) {
     renderKelasSetup();
     return;
   }
@@ -113,32 +122,102 @@ async function route() {
 function renderKelasSetup() {
   const isDosen = PROFILE.role === "dosen";
   mastheadTitle.textContent = "Satu langkah lagi";
+
+  if (!isDosen) {
+    root.innerHTML = `
+      <div class="setup-wrap">
+        <div class="card">
+          <div class="card-head"><h2>Kode kelasmu</h2></div>
+          <p class="helptext" style="margin-top:0;">Masukkan kode kelas yang diberikan dosenmu, supaya perkembanganmu bisa dipantau.</p>
+          <label for="kelasInput">Kode Kelas</label>
+          <input type="text" id="kelasInput" placeholder="Contoh: RPL-A-2026">
+          <button class="btn btn-primary" id="saveKelasBtn" style="width:100%;">Simpan &amp; Lanjut</button>
+        </div>
+      </div>
+    `;
+    document.getElementById("saveKelasBtn").addEventListener("click", async () => {
+      const val = document.getElementById("kelasInput").value.trim();
+      if (!val) {
+        alert("Kode kelas tidak boleh kosong.");
+        return;
+      }
+      const btn = document.getElementById("saveKelasBtn");
+      btn.disabled = true;
+      btn.textContent = "Menyimpan…";
+      await updateUserKelas(CURRENT_USER.uid, val);
+      PROFILE.kelas = val;
+      await route();
+    });
+    return;
+  }
+
+  // ===== Dosen: bisa isi sampai 3 mata kuliah/kelas =====
   root.innerHTML = `
-    <div class="setup-wrap">
+    <div class="setup-wrap" style="max-width:560px;">
       <div class="card">
-        <div class="card-head"><h2>${isDosen ? "Kelas yang kamu ampu" : "Kode kelasmu"}</h2></div>
-        <p class="helptext" style="margin-top:0;">
-          ${isDosen
-            ? "Masukkan nama/kode kelas yang kamu ampu. Mahasiswa yang mendaftar dengan kode yang sama akan muncul di dashboard-mu."
-            : "Masukkan kode kelas yang diberikan dosenmu, supaya perkembanganmu bisa dipantau."}
-        </p>
-        <label for="kelasInput">${isDosen ? "Kode Kelas" : "Kode Kelas"}</label>
-        <input type="text" id="kelasInput" placeholder="Contoh: RPL-A-2026">
-        <button class="btn btn-primary" id="saveKelasBtn" style="width:100%;">Simpan &amp; Lanjut</button>
+        <div class="card-head"><h2>Mata kuliah yang kamu ampu</h2></div>
+        <p class="helptext" style="margin-top:0;">Tambahkan sampai 3 mata kuliah. Tiap mata kuliah punya kode kelas sendiri — mahasiswa yang mendaftar dengan kode itu akan muncul di dashboard-mu.</p>
+
+        ${dosenKelasDraft.map((row, i) => `
+          <div class="field-row" data-row="${i}" style="align-items:flex-end;">
+            <div>
+              <label for="mataKuliah${i}">Mata Kuliah ${i + 1}</label>
+              <input type="text" id="mataKuliah${i}" placeholder="Contoh: Basis Data" value="${escapeHtml(row.mataKuliah)}">
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <div style="flex:1;">
+                <label for="kodeKelas${i}">Kode Kelas ${i + 1}</label>
+                <input type="text" id="kodeKelas${i}" placeholder="Contoh: RPL-A-2026" value="${escapeHtml(row.kodeKelas)}">
+              </div>
+              ${dosenKelasDraft.length > 1 ? `<button type="button" class="ledger-delete" data-removerow="${i}" title="Hapus baris" style="margin-top:30px;">✕</button>` : ""}
+            </div>
+          </div>
+        `).join("")}
+
+        ${dosenKelasDraft.length < 3 ? `<button type="button" class="btn btn-ghost btn-small" id="addKelasRowBtn">+ Tambah Mata Kuliah</button>` : `<p class="note">Sudah maksimal 3 mata kuliah.</p>`}
+
+        <button class="btn btn-primary" id="saveKelasBtn" style="width:100%;margin-top:16px;">Simpan &amp; Lanjut</button>
       </div>
     </div>
   `;
+
+  dosenKelasDraft.forEach((_, i) => {
+    document.getElementById(`mataKuliah${i}`).addEventListener("input", (e) => (dosenKelasDraft[i].mataKuliah = e.target.value));
+    document.getElementById(`kodeKelas${i}`).addEventListener("input", (e) => (dosenKelasDraft[i].kodeKelas = e.target.value));
+  });
+
+  const addBtn = document.getElementById("addKelasRowBtn");
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      if (dosenKelasDraft.length < 3) dosenKelasDraft.push({ mataKuliah: "", kodeKelas: "" });
+      renderKelasSetup();
+    });
+  }
+
+  document.querySelectorAll("[data-removerow]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      dosenKelasDraft.splice(Number(btn.dataset.removerow), 1);
+      renderKelasSetup();
+    });
+  });
+
   document.getElementById("saveKelasBtn").addEventListener("click", async () => {
-    const val = document.getElementById("kelasInput").value.trim();
-    if (!val) {
-      alert("Kode kelas tidak boleh kosong.");
+    const filled = dosenKelasDraft
+      .map((r) => ({ mataKuliah: r.mataKuliah.trim(), kodeKelas: r.kodeKelas.trim() }))
+      .filter((r) => r.mataKuliah && r.kodeKelas);
+
+    if (filled.length === 0) {
+      alert("Isi minimal satu mata kuliah beserta kode kelasnya.");
       return;
     }
+
     const btn = document.getElementById("saveKelasBtn");
     btn.disabled = true;
     btn.textContent = "Menyimpan…";
-    await updateUserKelas(CURRENT_USER.uid, val);
-    PROFILE.kelas = val;
+
+    await updateDosenKelasList(CURRENT_USER.uid, filled);
+    PROFILE.kelasList = filled;
+    PROFILE.kelasCodes = filled.map((r) => r.kodeKelas);
     await route();
   });
 }
@@ -234,7 +313,7 @@ function renderRingkasanTab() {
 
     <div class="card">
       <div class="card-head"><h2>Peta Jaringan Semantik Jurnal</h2><span class="tag">${JOURNAL.length} entri dianalisis</span></div>
-      ${buildSemanticNetworkSVG(JOURNAL)}
+      ${buildSemanticNetworkSVG(JOURNAL, semanticMetric)}
       <a href="history.html" class="btn btn-ghost btn-small" style="text-decoration:none;display:inline-block;margin-top:12px;">Tinjau kondisi di waktu lain →</a>
     </div>
   `;
@@ -429,6 +508,17 @@ function bindMahasiswaEvents() {
     });
   }
 
+  // ===== Pilihan algoritma peta jaringan semantik =====
+  const centralityPillset = document.getElementById("centralityPillset");
+  if (centralityPillset) {
+    centralityPillset.addEventListener("click", (e) => {
+      const pill = e.target.closest(".pill");
+      if (!pill) return;
+      semanticMetric = pill.dataset.metric;
+      renderMahasiswaDashboard();
+    });
+  }
+
   // ===== Catat Aktivitas Baru =====
   on("taskCourse", "input", (e) => (taskDraft.course = e.target.value));
   on("taskTitle", "input", (e) => (taskDraft.title = e.target.value));
@@ -547,17 +637,31 @@ function bindMahasiswaEvents() {
 }
 
 /* ============================================================
-   DOSEN — muat data kelas
+   DOSEN — muat data kelas (bisa lebih dari satu, maks 3)
    ============================================================ */
 async function loadDosenData() {
-  CLASS_STUDENTS = await getStudentsByKelas(PROFILE.kelas);
-  const taskLists = await Promise.all(CLASS_STUDENTS.map((s) => getRecentTasks(s.uid)));
+  const kelasList = PROFILE.kelasList || [];
+  if (!activeDosenKelas || !kelasList.some((k) => k.kodeKelas === activeDosenKelas)) {
+    activeDosenKelas = kelasList[0] ? kelasList[0].kodeKelas : null;
+  }
+
+  CLASS_STUDENTS_BY_KELAS = {};
   STUDENT_TASKS = {};
-  CLASS_STUDENTS.forEach((s, i) => (STUDENT_TASKS[s.uid] = taskLists[i]));
+
+  await Promise.all(kelasList.map(async (k) => {
+    const students = await getStudentsByKelas(k.kodeKelas, PROFILE.institusiId);
+    CLASS_STUDENTS_BY_KELAS[k.kodeKelas] = students;
+    const taskLists = await Promise.all(students.map((s) => getRecentTasks(s.uid)));
+    students.forEach((s, i) => (STUDENT_TASKS[s.uid] = taskLists[i]));
+  }));
 }
 
 function renderDosenDashboard() {
-  const withRisk = CLASS_STUDENTS.map((s) => ({
+  const kelasList = PROFILE.kelasList || [];
+  const currentKelasInfo = kelasList.find((k) => k.kodeKelas === activeDosenKelas);
+  const students = CLASS_STUDENTS_BY_KELAS[activeDosenKelas] || [];
+
+  const withRisk = students.map((s) => ({
     ...s,
     risk: s.assessmentDone ? computeCombinedRisk(s.assessmentScore, STUDENT_TASKS[s.uid] || []) : null
   })).sort((a, b) => {
@@ -576,8 +680,14 @@ function renderDosenDashboard() {
       <a href="profile.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Profil</a>
     </div>
 
+    ${kelasList.length > 1 ? `
+    <div class="dash-tabs" id="dosenKelasTabs">
+      ${kelasList.map((k) => `<button type="button" class="tab-btn" data-kelas="${escapeHtml(k.kodeKelas)}" data-active="${activeDosenKelas === k.kodeKelas}">${escapeHtml(k.mataKuliah)}</button>`).join("")}
+    </div>
+    ` : ""}
+
     <div class="card-head" style="border-bottom:none;margin-bottom:14px;">
-      <h2>Kelas: ${escapeHtml(PROFILE.kelas)}</h2>
+      <h2>${currentKelasInfo ? escapeHtml(currentKelasInfo.mataKuliah) : "Kelas"} <span style="font-weight:400;color:#847d63;font-size:14px;">— ${escapeHtml(activeDosenKelas || "")}</span></h2>
       <span class="tag">${withRisk.length} mahasiswa</span>
     </div>
 
@@ -612,6 +722,16 @@ function renderDosenDashboard() {
 
     <div id="modalHost"></div>
   `;
+
+  const dosenKelasTabs = document.getElementById("dosenKelasTabs");
+  if (dosenKelasTabs) {
+    dosenKelasTabs.addEventListener("click", (e) => {
+      const btn = e.target.closest(".tab-btn");
+      if (!btn) return;
+      activeDosenKelas = btn.dataset.kelas;
+      renderDosenDashboard();
+    });
+  }
 
   root.querySelectorAll("tr[data-uid]").forEach((row) => {
     row.addEventListener("click", () => openStudentModal(row.dataset.uid, withRisk));

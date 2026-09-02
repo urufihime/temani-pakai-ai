@@ -1,4 +1,4 @@
-import { requireAuth, logout } from "./authGuard.js";
+import { requireAuth, logout, blockIfInstitutionInactive } from "./authGuard.js";
 import { getUserProfile, getTasks, getJournalEntries, getRuleLogs, getTargets } from "./firestore.js";
 import {
   escapeHtml,
@@ -27,10 +27,13 @@ let RULE_LOGS = [];
 let TARGETS = [];
 let activeFilter = "semua";
 let weeksAgo = 0;
+let semanticMetric = "frequency";
 
 requireAuth(async (user) => {
   CURRENT_USER = user;
   PROFILE = await getUserProfile(user.uid);
+  if (await blockIfInstitutionInactive(root, PROFILE)) return;
+
   document.getElementById("userGreeting").textContent = `${PROFILE.name} · ${PROFILE.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
 
   if (PROFILE.role === "dosen") {
@@ -198,7 +201,7 @@ function render() {
 
     <div class="card">
       <div class="card-head"><h2>Peta Jaringan Semantik Jurnal</h2><span class="tag">${journalUpToView.length} entri dianalisis</span></div>
-      ${buildSemanticNetworkSVG(journalUpToView)}
+      ${buildSemanticNetworkSVG(journalUpToView, semanticMetric)}
     </div>
   `;
 
@@ -218,4 +221,14 @@ function render() {
     activeFilter = pill.dataset.filter;
     render();
   });
+
+  const centralityPillset = document.getElementById("centralityPillset");
+  if (centralityPillset) {
+    centralityPillset.addEventListener("click", (e) => {
+      const pill = e.target.closest(".pill");
+      if (!pill) return;
+      semanticMetric = pill.dataset.metric;
+      render();
+    });
+  }
 }

@@ -327,7 +327,160 @@ export function buildRuleComplianceSVG(ruleLogs, days = 7, refDateStr) {
   `;
 }
 
-export function buildSemanticNetworkSVG(entries) {
+/* ============================================================
+   GRAPH CENTRALITY — algoritma untuk menilai "seberapa penting"
+   sebuah kata di peta jaringan semantik. Semua diimplementasi
+   dari nol (tanpa library), cocok untuk graf kecil (maks 14 node).
+   ============================================================ */
+
+export const CENTRALITY_METRICS = {
+  frequency: "Frekuensi Kata",
+  degree: "Degree Centrality",
+  closeness: "Closeness Centrality",
+  betweenness: "Betweenness Centrality",
+  eigenvector: "Eigenvector Centrality",
+  pagerank: "PageRank"
+};
+
+const CENTRALITY_DESC = {
+  frequency: "Kata yang paling sering muncul di jurnalmu.",
+  degree: "Kata yang terhubung ke paling banyak kata lain (paling banyak \"teman bicara\").",
+  closeness: "Kata yang jaraknya paling dekat ke semua kata lain di peta ini.",
+  betweenness: "Kata yang paling sering jadi \"jembatan\" penghubung antar kata lain.",
+  eigenvector: "Kata yang penting karena terhubung ke kata-kata lain yang juga penting.",
+  pagerank: "Mirip cara Google menilai halaman penting — kata dianggap penting kalau sering dirujuk oleh kata penting lainnya."
+};
+
+// Bangun peta ketetanggaan (adjacency) berbobot dari daftar kata & edge.
+function buildAdjacency(words, edges) {
+  const adj = {};
+  words.forEach((w) => (adj[w] = {}));
+  edges.forEach((e) => {
+    adj[e.a][e.b] = (adj[e.a][e.b] || 0) + e.weight;
+    adj[e.b][e.a] = (adj[e.b][e.a] || 0) + e.weight;
+  });
+  return adj;
+}
+
+function computeDegreeCentrality(words, edges) {
+  const score = {};
+  words.forEach((w) => (score[w] = 0));
+  edges.forEach((e) => {
+    score[e.a] += e.weight;
+    score[e.b] += e.weight;
+  });
+  return score;
+}
+
+// BFS jarak terpendek (tak berbobot) dari satu titik ke semua titik lain.
+function bfsDistances(src, words, adj) {
+  const dist = {};
+  words.forEach((w) => (dist[w] = Infinity));
+  dist[src] = 0;
+  const queue = [src];
+  while (queue.length) {
+    const u = queue.shift();
+    Object.keys(adj[u]).forEach((v) => {
+      if (dist[v] === Infinity) {
+        dist[v] = dist[u] + 1;
+        queue.push(v);
+      }
+    });
+  }
+  return dist;
+}
+
+function computeClosenessCentrality(words, adj) {
+  const score = {};
+  words.forEach((src) => {
+    const dist = bfsDistances(src, words, adj);
+    const reachable = words.filter((w) => w !== src && dist[w] < Infinity);
+    const sum = reachable.reduce((s, w) => s + dist[w], 0);
+    score[src] = sum > 0 ? reachable.length / sum : 0;
+  });
+  return score;
+}
+
+// Algoritma Brandes (versi tak berbobot) untuk betweenness centrality.
+function computeBetweennessCentrality(words, adj) {
+  const CB = {};
+  words.forEach((w) => (CB[w] = 0));
+
+  words.forEach((s) => {
+    const stack = [];
+    const P = {}; words.forEach((w) => (P[w] = []));
+    const sigma = {}; words.forEach((w) => (sigma[w] = 0)); sigma[s] = 1;
+    const d = {}; words.forEach((w) => (d[w] = -1)); d[s] = 0;
+    const queue = [s];
+
+    while (queue.length) {
+      const v = queue.shift();
+      stack.push(v);
+      Object.keys(adj[v]).forEach((w) => {
+        if (d[w] < 0) { d[w] = d[v] + 1; queue.push(w); }
+        if (d[w] === d[v] + 1) { sigma[w] += sigma[v]; P[w].push(v); }
+      });
+    }
+
+    const delta = {}; words.forEach((w) => (delta[w] = 0));
+    while (stack.length) {
+      const w = stack.pop();
+      P[w].forEach((v) => { delta[v] += (sigma[v] / sigma[w]) * (1 + delta[w]); });
+      if (w !== s) CB[w] += delta[w];
+    }
+  });
+
+  words.forEach((w) => (CB[w] /= 2)); // graf tak berarah: tiap pasangan terhitung 2x
+  return CB;
+}
+
+// Power iteration untuk eigenvector centrality.
+function computeEigenvectorCentrality(words, adj, iterations = 100) {
+  let x = {}; words.forEach((w) => (x[w] = 1));
+  for (let it = 0; it < iterations; it++) {
+    const nx = {};
+    words.forEach((w) => {
+      let sum = 0;
+      Object.keys(adj[w]).forEach((v) => (sum += adj[w][v] * x[v]));
+      nx[w] = sum;
+    });
+    const norm = Math.sqrt(words.reduce((s, w) => s + nx[w] * nx[w], 0)) || 1;
+    words.forEach((w) => (x[w] = nx[w] / norm));
+  }
+  return x;
+}
+
+// PageRank versi graf tak berarah (link dianggap dua arah).
+function computePageRank(words, adj, damping = 0.85, iterations = 100) {
+  const N = words.length;
+  let pr = {}; words.forEach((w) => (pr[w] = 1 / N));
+  const degree = {};
+  words.forEach((w) => (degree[w] = Object.keys(adj[w]).length || 1));
+
+  for (let it = 0; it < iterations; it++) {
+    const npr = {};
+    words.forEach((w) => {
+      let sum = 0;
+      Object.keys(adj[w]).forEach((v) => (sum += pr[v] / degree[v]));
+      npr[w] = (1 - damping) / N + damping * sum;
+    });
+    pr = npr;
+  }
+  return pr;
+}
+
+function computeCentralityScores(metric, words, edges, freq) {
+  if (metric === "frequency" || !metric) return { ...freq };
+  const adj = buildAdjacency(words, edges);
+  if (metric === "degree") return computeDegreeCentrality(words, edges);
+  if (metric === "closeness") return computeClosenessCentrality(words, adj);
+  if (metric === "betweenness") return computeBetweennessCentrality(words, adj);
+  if (metric === "eigenvector") return computeEigenvectorCentrality(words, adj);
+  if (metric === "pagerank") return computePageRank(words, adj);
+  return { ...freq };
+}
+
+export function buildSemanticNetworkSVG(entries, metric = "frequency") {
   const texts = (entries || []).map((e) => e.text).filter(Boolean);
   if (texts.length === 0) {
     return `<p class="empty">Belum ada jurnal untuk dianalisis. Tulis beberapa refleksi dulu, ya.</p>`;
@@ -357,8 +510,16 @@ export function buildSemanticNetworkSVG(entries) {
     .slice(0, 14)
     .map(([w]) => w);
 
+  const metricPillset = `
+    <div class="pillset centrality-pillset" id="centralityPillset">
+      ${Object.entries(CENTRALITY_METRICS).map(([key, label]) => `
+        <button type="button" class="pill" data-metric="${key}" data-active="${metric === key}">${label}</button>
+      `).join("")}
+    </div>
+  `;
+
   if (topWords.length < 2) {
-    return `<p class="empty">Belum cukup variasi kata di jurnalmu untuk membentuk peta jaringan. Tulis refleksi yang lebih beragam.</p>`;
+    return metricPillset + `<p class="empty">Belum cukup variasi kata di jurnalmu untuk membentuk peta jaringan. Tulis refleksi yang lebih beragam.</p>`;
   }
 
   const topSet = new Set(topWords);
@@ -369,11 +530,13 @@ export function buildSemanticNetworkSVG(entries) {
     })
     .filter((e) => topSet.has(e.a) && topSet.has(e.b));
 
+  const scores = computeCentralityScores(metric, topWords, edges, freq);
+
   // ---- Simulasi gaya sederhana (repulsion + spring + centering) ----
   const W = 420, H = 320, cx = W / 2, cy = H / 2;
   const nodes = topWords.map((w, i) => ({
     id: w,
-    freq: freq[w],
+    score: scores[w] || 0,
     x: cx + Math.cos((i / topWords.length) * Math.PI * 2) * 100,
     y: cy + Math.sin((i / topWords.length) * Math.PI * 2) * 100,
     vx: 0,
@@ -413,28 +576,38 @@ export function buildSemanticNetworkSVG(entries) {
     });
   }
 
-  const maxFreq = Math.max(...nodes.map((n) => n.freq));
+  const ranked = [...nodes].sort((a, b) => b.score - a.score);
+  const maxScore = Math.max(...nodes.map((n) => n.score), 0.0001);
+  const topRankSet = new Set(ranked.slice(0, 3).map((n) => n.id));
+
   const edgeLines = edges.map((e) => {
     const n1 = nodeByWord[e.a], n2 = nodeByWord[e.b];
     const w = Math.min(4, 0.8 + e.weight * 0.6);
     return `<line x1="${n1.x.toFixed(1)}" y1="${n1.y.toFixed(1)}" x2="${n2.x.toFixed(1)}" y2="${n2.y.toFixed(1)}" stroke="var(--paper-line)" stroke-width="${w}" opacity="0.85"/>`;
   }).join("");
 
-  const nodeCircles = nodes.map((n, i) => {
-    const r = 8 + (n.freq / maxFreq) * 12;
-    const color = i < 3 ? "var(--gold)" : "var(--ink-navy)";
+  const nodeCircles = nodes.map((n) => {
+    const r = 8 + (n.score / maxScore) * 12;
+    const color = topRankSet.has(n.id) ? "var(--gold)" : "var(--ink-navy)";
     return `
       <circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="0.92"/>
       <text x="${n.x.toFixed(1)}" y="${(n.y + r + 12).toFixed(1)}" font-size="11" font-family="Inter, sans-serif" fill="#3c3a32" text-anchor="middle">${escapeHtml(n.id)}</text>
     `;
   }).join("");
 
+  const rankList = ranked.slice(0, 5).map((n) =>
+    `<li><strong>${escapeHtml(n.id)}</strong> — ${n.score.toFixed(metric === "frequency" || metric === "degree" ? 0 : 3)}</li>`
+  ).join("");
+
   return `
+    ${metricPillset}
     <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:520px;display:block;margin:0 auto;">
       ${edgeLines}
       ${nodeCircles}
     </svg>
-    <p class="note" style="margin-top:14px;">Ukuran lingkaran = seberapa sering kata itu muncul di jurnalmu. Garis = dua kata yang sering muncul dalam kalimat yang sama. 3 kata terbesar ditandai warna emas.</p>
+    <p class="helptext" style="margin-top:14px;margin-bottom:6px;">${CENTRALITY_DESC[metric] || CENTRALITY_DESC.frequency}</p>
+    <ol class="centrality-rank">${rankList}</ol>
+    <p class="note" style="margin-top:10px;">Ukuran &amp; warna emas node = 3 kata dengan skor <strong>${CENTRALITY_METRICS[metric] || "Frekuensi Kata"}</strong> tertinggi. Garis = dua kata yang sering muncul dalam kalimat yang sama.</p>
   `;
 }
 

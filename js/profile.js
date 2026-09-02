@@ -1,5 +1,5 @@
-import { requireAuth, logout } from "./authGuard.js";
-import { getUserProfile, updateUserProfileFields, getTasks } from "./firestore.js";
+import { requireAuth, logout, blockIfInstitutionInactive } from "./authGuard.js";
+import { getUserProfile, updateUserProfileFields, updateDosenKelasList, getTasks } from "./firestore.js";
 import { escapeHtml, computeCombinedRisk, RISK_COPY } from "./utils.js";
 import {
   EmailAuthProvider,
@@ -13,14 +13,19 @@ document.getElementById("logoutBtn").addEventListener("click", logout);
 let CURRENT_USER = null;
 let PROFILE = null;
 let TASKS = [];
+let kelasEditDraft = [{ mataKuliah: "", kodeKelas: "" }];
 
 requireAuth(async (user) => {
   CURRENT_USER = user;
   PROFILE = await getUserProfile(user.uid);
+  if (await blockIfInstitutionInactive(root, PROFILE)) return;
+
   document.getElementById("userGreeting").textContent = `${PROFILE.name} · ${PROFILE.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
 
   if (PROFILE.role === "mahasiswa") {
     TASKS = await getTasks(user.uid);
+  } else if (PROFILE.kelasList && PROFILE.kelasList.length > 0) {
+    kelasEditDraft = PROFILE.kelasList.map((k) => ({ ...k }));
   }
 
   render();
@@ -59,18 +64,42 @@ function render() {
       ${isDosen ? `
         <label for="nipInput">NIP / NIDN</label>
         <input type="text" id="nipInput" placeholder="Opsional" value="${escapeHtml(PROFILE.nip || "")}">
-
-        <label for="mataKuliahInput">Mata Kuliah yang Diampu</label>
-        <input type="text" id="mataKuliahInput" placeholder="Contoh: Basis Data, Pemrograman Web" value="${escapeHtml(PROFILE.mataKuliah || "")}">
-      ` : ""}
-
-      <label for="kelasInput">${isDosen ? "Kode Kelas yang Diampu" : "Kode Kelas"}</label>
-      <input type="text" id="kelasInput" value="${escapeHtml(PROFILE.kelas || "")}">
-      ${isDosen ? `<p class="helptext">Kode ini yang dipakai mahasiswa untuk terhubung ke kelasmu — beda dengan nama mata kuliah di atas.</p>` : ""}
+      ` : `
+        <label for="kelasInput">Kode Kelas</label>
+        <input type="text" id="kelasInput" value="${escapeHtml(PROFILE.kelas || "")}">
+      `}
 
       <button class="btn btn-primary" id="saveBtn">Simpan Perubahan</button>
       <span id="saveStatus" style="margin-left:10px;font-size:12.5px;color:var(--moss-2);display:none;">Tersimpan.</span>
     </div>
+
+    ${isDosen ? `
+      <div class="card">
+        <div class="card-head"><h2>Mata Kuliah yang Diampu</h2><span class="tag">Maks. 3</span></div>
+        <p class="helptext" style="margin-top:0;">Tiap mata kuliah punya kode kelas sendiri — mahasiswa yang mendaftar dengan kode itu akan muncul di dashboard-mu.</p>
+
+        ${kelasEditDraft.map((row, i) => `
+          <div class="field-row" data-row="${i}" style="align-items:flex-end;">
+            <div>
+              <label for="mataKuliah${i}">Mata Kuliah ${i + 1}</label>
+              <input type="text" id="mataKuliah${i}" placeholder="Contoh: Basis Data" value="${escapeHtml(row.mataKuliah)}">
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <div style="flex:1;">
+                <label for="kodeKelas${i}">Kode Kelas ${i + 1}</label>
+                <input type="text" id="kodeKelas${i}" placeholder="Contoh: RPL-A-2026" value="${escapeHtml(row.kodeKelas)}">
+              </div>
+              ${kelasEditDraft.length > 1 ? `<button type="button" class="ledger-delete" data-removekelasrow="${i}" title="Hapus baris" style="margin-top:30px;">✕</button>` : ""}
+            </div>
+          </div>
+        `).join("")}
+
+        ${kelasEditDraft.length < 3 ? `<button type="button" class="btn btn-ghost btn-small" id="addKelasRowBtn">+ Tambah Mata Kuliah</button>` : `<p class="note">Sudah maksimal 3 mata kuliah.</p>`}
+
+        <button class="btn btn-primary" id="saveKelasListBtn" style="width:100%;margin-top:16px;">Simpan Mata Kuliah</button>
+        <span id="saveKelasStatus" style="margin-left:10px;font-size:12.5px;color:var(--moss-2);display:none;">Tersimpan.</span>
+      </div>
+    ` : ""}
 
     ${!isDosen ? `
       <div class="card">
@@ -93,7 +122,6 @@ function render() {
 function bindEvents() {
   document.getElementById("saveBtn").addEventListener("click", async () => {
     const name = document.getElementById("nameInput").value.trim();
-    const kelas = document.getElementById("kelasInput").value.trim();
     if (!name) {
       alert("Nama tidak boleh kosong.");
       return;
@@ -102,10 +130,11 @@ function bindEvents() {
     btn.disabled = true;
     btn.textContent = "Menyimpan…";
 
-    const fields = { name, kelas: kelas || null };
+    const fields = { name };
     if (PROFILE.role === "dosen") {
       fields.nip = document.getElementById("nipInput").value.trim() || null;
-      fields.mataKuliah = document.getElementById("mataKuliahInput").value.trim() || null;
+    } else {
+      fields.kelas = document.getElementById("kelasInput").value.trim() || null;
     }
 
     await updateUserProfileFields(CURRENT_USER.uid, fields);
@@ -120,6 +149,57 @@ function bindEvents() {
   });
 
   document.getElementById("changePasswordBtn").addEventListener("click", handleChangePassword);
+
+  // ===== Mata kuliah dosen (maks 3) =====
+  kelasEditDraft.forEach((_, i) => {
+    const mkEl = document.getElementById(`mataKuliah${i}`);
+    const kkEl = document.getElementById(`kodeKelas${i}`);
+    if (mkEl) mkEl.addEventListener("input", (e) => (kelasEditDraft[i].mataKuliah = e.target.value));
+    if (kkEl) kkEl.addEventListener("input", (e) => (kelasEditDraft[i].kodeKelas = e.target.value));
+  });
+
+  const addKelasRowBtn = document.getElementById("addKelasRowBtn");
+  if (addKelasRowBtn) {
+    addKelasRowBtn.addEventListener("click", () => {
+      if (kelasEditDraft.length < 3) kelasEditDraft.push({ mataKuliah: "", kodeKelas: "" });
+      render();
+    });
+  }
+
+  document.querySelectorAll("[data-removekelasrow]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      kelasEditDraft.splice(Number(btn.dataset.removekelasrow), 1);
+      if (kelasEditDraft.length === 0) kelasEditDraft.push({ mataKuliah: "", kodeKelas: "" });
+      render();
+    });
+  });
+
+  const saveKelasListBtn = document.getElementById("saveKelasListBtn");
+  if (saveKelasListBtn) {
+    saveKelasListBtn.addEventListener("click", async () => {
+      const filled = kelasEditDraft
+        .map((r) => ({ mataKuliah: r.mataKuliah.trim(), kodeKelas: r.kodeKelas.trim() }))
+        .filter((r) => r.mataKuliah && r.kodeKelas);
+
+      if (filled.length === 0) {
+        alert("Isi minimal satu mata kuliah beserta kode kelasnya.");
+        return;
+      }
+
+      saveKelasListBtn.disabled = true;
+      saveKelasListBtn.textContent = "Menyimpan…";
+
+      await updateDosenKelasList(CURRENT_USER.uid, filled);
+      PROFILE.kelasList = filled;
+      PROFILE.kelasCodes = filled.map((r) => r.kodeKelas);
+
+      saveKelasListBtn.disabled = false;
+      saveKelasListBtn.textContent = "Simpan Mata Kuliah";
+      const status = document.getElementById("saveKelasStatus");
+      status.style.display = "inline";
+      setTimeout(() => (status.style.display = "none"), 2000);
+    });
+  }
 }
 
 function showPasswordMessage(message, isSuccess) {

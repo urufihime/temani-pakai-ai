@@ -1,4 +1,4 @@
-import { requireAuth, logout } from "./authGuard.js";
+import { requireAuth, logout, blockIfInstitutionInactive } from "./authGuard.js";
 import { getUserProfile, saveAssessmentResult } from "./firestore.js";
 import { assessmentLevelIndex, QUIZ_LEVEL_COPY } from "./utils.js";
 
@@ -52,6 +52,7 @@ const QUESTIONS = [
 requireAuth(async (user) => {
   CURRENT_USER = user;
   PROFILE = await getUserProfile(user.uid);
+  if (await blockIfInstitutionInactive(root, PROFILE)) return;
 
   if (PROFILE.assessmentDone) {
     renderExistingResult();

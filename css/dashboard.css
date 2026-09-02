@@ -327,3 +327,14 @@ table.class-table tr:hover td{background:var(--paper-2);cursor:pointer;}
   padding:8px 10px;
   font-size:13px;
 }
+
+/* ===== Pilihan algoritma & ranking peta jaringan semantik ===== */
+.centrality-pillset{margin-bottom:14px;}
+.centrality-rank{
+  margin:0;
+  padding-left:20px;
+  font-size:12.5px;
+  color:#3c3a32;
+  line-height:1.9;
+}
+.centrality-rank li{margin-bottom:2px;}

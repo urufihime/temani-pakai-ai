@@ -1,4 +1,4 @@
-import { requireAuth, logout } from "./authGuard.js";
+import { requireAuth, logout, blockIfInstitutionInactive } from "./authGuard.js";
 import { getUserProfile, getTasks, getJournalEntries } from "./firestore.js";
 import {
   escapeHtml,
@@ -13,8 +13,15 @@ import {
 const root = document.getElementById("root");
 document.getElementById("logoutBtn").addEventListener("click", logout);
 
+let STUDENT = null;
+let TASKS = [];
+let JOURNAL = [];
+let semanticMetric = "frequency";
+
 requireAuth(async (user) => {
   const me = await getUserProfile(user.uid);
+  if (await blockIfInstitutionInactive(root, me)) return;
+
   document.getElementById("userGreeting").textContent = `${me.name} · ${me.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
 
   if (me.role !== "dosen") {
@@ -34,7 +41,8 @@ requireAuth(async (user) => {
   }
 
   const student = await getUserProfile(targetUid);
-  if (!student || student.role !== "mahasiswa" || student.kelas !== me.kelas) {
+  const sameInstitution = (student && student.institusiId) === me.institusiId;
+  if (!student || student.role !== "mahasiswa" || !sameInstitution || !(me.kelasCodes || []).includes(student.kelas)) {
     root.innerHTML = `
       <div class="card">
         <p class="empty">Kamu tidak punya akses ke profil mahasiswa ini (bukan bagian dari kelasmu).</p>
@@ -45,10 +53,14 @@ requireAuth(async (user) => {
   }
 
   const [tasks, journal] = await Promise.all([getTasks(targetUid), getJournalEntries(targetUid)]);
-  render(student, tasks, journal);
+  STUDENT = student;
+  TASKS = tasks;
+  JOURNAL = journal;
+  render();
 });
 
-function render(student, tasks, journal) {
+function render() {
+  const student = STUDENT, tasks = TASKS, journal = JOURNAL;
   const riskSection = student.assessmentDone
     ? (() => {
         const risk = computeCombinedRisk(student.assessmentScore, tasks);
@@ -115,7 +127,17 @@ function render(student, tasks, journal) {
 
     <div class="card">
       <div class="card-head"><h2>Peta Jaringan Semantik Jurnal</h2><span class="tag">${journal.length} entri dianalisis</span></div>
-      ${buildSemanticNetworkSVG(journal)}
+      ${buildSemanticNetworkSVG(journal, semanticMetric)}
     </div>
   `;
+
+  const centralityPillset = document.getElementById("centralityPillset");
+  if (centralityPillset) {
+    centralityPillset.addEventListener("click", (e) => {
+      const pill = e.target.closest(".pill");
+      if (!pill) return;
+      semanticMetric = pill.dataset.metric;
+      render();
+    });
+  }
 }
