@@ -1,6 +1,7 @@
 import { requireAuth, logout, blockIfInstitutionInactive } from "./authGuard.js";
 import {
   getUserProfile,
+  syncDosenKelasCodes,
   getDosenByKelas,
   getStudentsByKelas,
   ensureConversation,
@@ -28,6 +29,7 @@ requireAuth(async (user) => {
   CURRENT_USER = user;
   PROFILE = await getUserProfile(user.uid);
   if (await blockIfInstitutionInactive(root, PROFILE)) return;
+  await syncDosenKelasCodes(PROFILE);
 
   document.getElementById("userGreeting").textContent = `${PROFILE.name} · ${PROFILE.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
 
@@ -117,8 +119,8 @@ async function openConversation(contact) {
   if (UNSUBSCRIBE) UNSUBSCRIBE();
 
   ACTIVE_CONV_ID = await ensureConversation(
-    CURRENT_USER.uid, PROFILE.name,
-    contact.uid, contact.name,
+    CURRENT_USER.uid, PROFILE.name, PROFILE.role,
+    contact.uid, contact.name, contact.role,
     PROFILE.role === "mahasiswa" ? PROFILE.kelas : contact.kelas
   );
 

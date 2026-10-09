@@ -14,6 +14,7 @@ import {
   addJournalEntry,
   getStudentsByKelas,
   getRecentTasks,
+  syncDosenKelasCodes,
   listenUnreadConversations,
   addTarget,
   getTargets,
@@ -84,12 +85,23 @@ requireAuth(async (user) => {
 
   userGreeting.textContent = `${PROFILE.name} · ${PROFILE.role === "dosen" ? "Dosen" : "Mahasiswa"}`;
 
+  await syncDosenKelasCodes(PROFILE);
+
   listenUnreadConversations(user.uid, (count) => {
     unreadChatCount = count;
     attachChatBadge();
   });
 
-  await route();
+  try {
+    await route();
+  } catch (err) {
+    console.error(err);
+    root.innerHTML = `
+      <div class="card">
+        <p class="empty">Data dashboard belum bisa dimuat (${escapeHtml(err.code || err.message || "error")}). Coba muat ulang halaman. Jika tetap gagal, hubungi pengelola.</p>
+      </div>
+    `;
+  }
 });
 
 async function route() {
@@ -157,6 +169,7 @@ function renderKelasSetup() {
       <div class="card">
         <div class="card-head"><h2>Mata kuliah yang kamu ampu</h2></div>
         <p class="helptext" style="margin-top:0;">Tambahkan sampai 3 mata kuliah. Tiap mata kuliah punya kode kelas sendiri — mahasiswa yang mendaftar dengan kode itu akan muncul di dashboard-mu.</p>
+        ${PROFILE.demoProgramId ? `<div class="banner banner-success show" style="margin-bottom:18px;">Kode institusi demo untuk pendaftaran mahasiswa: <strong>${escapeHtml(PROFILE.institusiId)}</strong></div>` : ""}
 
         ${dosenKelasDraft.map((row, i) => `
           <div class="field-row" data-row="${i}" style="align-items:flex-end;">
@@ -679,6 +692,8 @@ function renderDosenDashboard() {
       <a href="chat.html" id="chatNavLink" class="btn btn-ghost btn-small" style="text-decoration:none;">Chat</a>
       <a href="profile.html" class="btn btn-ghost btn-small" style="text-decoration:none;">Profil</a>
     </div>
+
+    ${PROFILE.demoProgramId ? `<div class="banner banner-success show" style="margin-bottom:18px;">Untuk mengundang mahasiswa uji coba, berikan kode institusi <strong>${escapeHtml(PROFILE.institusiId)}</strong> serta kode kelas yang Anda buat.</div>` : ""}
 
     ${kelasList.length > 1 ? `
     <div class="dash-tabs" id="dosenKelasTabs">

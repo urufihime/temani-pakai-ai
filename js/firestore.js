@@ -12,6 +12,9 @@ import {
   where,
   orderBy,
   onSnapshot,
+  runTransaction,
+  Timestamp,
+  increment,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
@@ -186,6 +189,23 @@ export async function getDosenByKelas(kelas, institusiId) {
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 }
 
+// Pastikan kelasCodes (dipakai Firestore Rules) selalu sama dengan kelasList.
+// Kalau tidak sinkron, rules menolak dosen membaca data mahasiswa kelas yang
+// ada di kelasList tapi tidak ada di kelasCodes. Aman dipanggil berulang.
+export async function syncDosenKelasCodes(profile) {
+  if (!profile || profile.role !== "dosen" || !Array.isArray(profile.kelasList)) return;
+  const wanted = profile.kelasList.slice(0, 3).map((k) => k.kodeKelas);
+  const current = Array.isArray(profile.kelasCodes) ? profile.kelasCodes : [];
+  const same = wanted.length === current.length && wanted.every((c, i) => c === current[i]);
+  if (same) return;
+  try {
+    await updateDoc(doc(db, "users", profile.uid), { kelasCodes: wanted });
+    profile.kelasCodes = wanted;
+  } catch (err) {
+    console.warn("Gagal sinkron kelasCodes:", err);
+  }
+}
+
 // Simpan daftar mata kuliah/kelas dosen (maksimal 3). kelasList: [{kodeKelas, mataKuliah}]
 export async function updateDosenKelasList(uid, kelasList) {
   const trimmed = (kelasList || []).slice(0, 3);
@@ -201,7 +221,7 @@ export function getConversationId(uidA, uidB) {
   return [uidA, uidB].sort().join("_");
 }
 
-export async function ensureConversation(uidA, nameA, uidB, nameB, kelas) {
+export async function ensureConversation(uidA, nameA, roleA, uidB, nameB, roleB, kelas) {
   const convId = getConversationId(uidA, uidB);
   const ref = doc(db, "conversations", convId);
   const snap = await getDoc(ref);
@@ -209,6 +229,8 @@ export async function ensureConversation(uidA, nameA, uidB, nameB, kelas) {
     await setDoc(ref, {
       participants: [uidA, uidB],
       participantNames: { [uidA]: nameA, [uidB]: nameB },
+      studentId: roleA === "mahasiswa" ? uidA : uidB,
+      dosenId: roleA === "dosen" ? uidA : uidB,
       kelas: kelas || null,
       lastMessage: "",
       lastMessageAt: serverTimestamp(),
@@ -224,13 +246,15 @@ export async function getConversationMeta(convId) {
 }
 
 export async function sendChatMessage(convId, senderId, text) {
+  const cleanText = String(text || "").trim().slice(0, 4000);
+  if (!cleanText) return;
   await addDoc(collection(db, "conversations", convId, "messages"), {
     senderId,
-    text,
+    text: cleanText,
     createdAt: serverTimestamp()
   });
   await updateDoc(doc(db, "conversations", convId), {
-    lastMessage: text,
+    lastMessage: cleanText,
     lastSenderId: senderId,
     lastMessageAt: serverTimestamp()
   });
@@ -263,6 +287,9 @@ export function listenUnreadConversations(uid, callback) {
       }
     });
     callback(count, unreadConvIds);
+  }, (err) => {
+    // Jangan sampai badge chat yang gagal memuat mengganggu halaman utama.
+    console.warn("Listener chat belum bisa dibaca:", err.code || err);
   });
 }
 
@@ -346,4 +373,93 @@ export async function countUsersInInstitution(kodeInstitusi) {
   const q = query(collection(db, "users"), where("institusiId", "==", kodeInstitusi));
   const snap = await getDocs(q);
   return snap.size;
+}
+
+/* ============================================================
+   PROGRAM DEMO DOSEN — satu kode, banyak dosen, ruang terpisah.
+   ============================================================ */
+
+export async function createDemoProgram(code, data) {
+  await setDoc(doc(db, "demoPrograms", code), {
+    name: data.name,
+    status: "aktif",
+    maxLecturers: Number(data.maxLecturers),
+    registeredCount: 0,
+    registrationEndsAt: Timestamp.fromDate(new Date(`${data.registrationEndsAt}T23:59:59.999`)),
+    accessEndsAt: Timestamp.fromDate(new Date(`${data.accessEndsAt}T23:59:59.999`)),
+    createdAt: serverTimestamp()
+  });
+}
+
+export async function getDemoProgram(code) {
+  if (!code) return null;
+  const snap = await getDoc(doc(db, "demoPrograms", code));
+  return snap.exists() ? { id: code, ...snap.data() } : null;
+}
+
+export async function getAllDemoPrograms() {
+  const snap = await getDocs(collection(db, "demoPrograms"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function updateDemoProgram(code, fields) {
+  const clean = { ...fields };
+  if (typeof clean.registrationEndsAt === "string") {
+    clean.registrationEndsAt = Timestamp.fromDate(new Date(`${clean.registrationEndsAt}T23:59:59.999`));
+  }
+  if (typeof clean.accessEndsAt === "string") {
+    clean.accessEndsAt = Timestamp.fromDate(new Date(`${clean.accessEndsAt}T23:59:59.999`));
+  }
+  await updateDoc(doc(db, "demoPrograms", code), clean);
+}
+
+export async function deleteDemoProgram(code) {
+  await deleteDoc(doc(db, "demoPrograms", code));
+}
+
+export async function claimDemoProgram(uid, { name, email, demoCode, institutionName }) {
+  const programRef = doc(db, "demoPrograms", demoCode);
+  const userRef = doc(db, "users", uid);
+  const institutionId = `DEMO-${uid.slice(0, 10).toUpperCase()}`;
+  const institutionRef = doc(db, "institutions", institutionId);
+
+  await runTransaction(db, async (transaction) => {
+    const programSnap = await transaction.get(programRef);
+    if (!programSnap.exists()) throw new Error("Kode demo tidak ditemukan.");
+    const program = programSnap.data();
+    if (program.status !== "aktif") throw new Error("Program demo tidak aktif.");
+    if (program.registrationEndsAt.toDate() < new Date()) throw new Error("Pendaftaran program demo sudah berakhir.");
+    if (program.registeredCount >= program.maxLecturers) throw new Error("Kuota program demo sudah penuh.");
+
+    transaction.set(institutionRef, {
+      nama: institutionName,
+      status: "aktif",
+      type: "demo",
+      ownerDosenId: uid,
+      demoProgramId: demoCode,
+      accessEndsAt: program.accessEndsAt,
+      expiresAt: null,
+      catatan: "Ruang demo otomatis",
+      createdAt: serverTimestamp()
+    });
+    transaction.set(userRef, {
+      name,
+      email: email.trim().toLowerCase(),
+      role: "dosen",
+      institusiId: institutionId,
+      demoProgramId: demoCode,
+      accessEndsAt: program.accessEndsAt,
+      kelas: null,
+      kelasList: [],
+      kelasCodes: [],
+      assessmentDone: false,
+      assessmentScore: 0,
+      assessmentLevel: "",
+      assessmentDate: null,
+      createdAt: serverTimestamp()
+    });
+    transaction.update(programRef, { registeredCount: increment(1) });
+  });
+
+  return institutionId;
 }
