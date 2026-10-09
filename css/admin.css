@@ -16,3 +16,33 @@
 .inst-row-actions{display:flex;gap:6px;flex-wrap:wrap;}
 
 .stat-box .n.small{font-size:22px;}
+
+/* ---------- Pengguna ---------- */
+.issue-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.issue-chip{
+  font-family:'IBM Plex Mono',monospace;font-size:11.5px;
+  padding:5px 11px;border-radius:14px;cursor:pointer;
+  border:1px solid var(--paper-line);background:var(--paper-2);color:var(--charcoal);
+}
+.issue-chip:hover{border-color:var(--ink-navy);}
+.issue-chip.active{background:var(--ink-navy);color:#fff;border-color:var(--ink-navy);}
+.issue-chip.ok{cursor:default;background:var(--moss);color:#fff;border-color:var(--moss);}
+
+.table-scroll{overflow-x:auto;}
+table.users-table td{vertical-align:top;}
+table.users-table tr:hover td{background:transparent;cursor:default;}
+.mono-sm{font-family:'IBM Plex Mono',monospace;font-size:12px;word-break:break-all;}
+.muted-sm{font-size:12px;color:#847d63;}
+.user-issue{font-size:12.5px;margin-bottom:6px;padding-left:8px;border-left:3px solid var(--debt-red);}
+.user-issue.warn{border-left-color:var(--amber);}
+.user-issue .btn{margin-top:4px;display:block;}
+
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(27,42,74,0.55);
+  display:flex;align-items:center;justify-content:center;padding:16px;z-index:1000;
+}
+.modal-card{
+  background:var(--paper);border:1px solid var(--paper-line);border-radius:6px;
+  padding:22px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;
+}
+.modal-actions{display:flex;gap:8px;margin-top:8px;}

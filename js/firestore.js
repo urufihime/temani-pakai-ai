@@ -375,6 +375,17 @@ export async function countUsersInInstitution(kodeInstitusi) {
   return snap.size;
 }
 
+// Khusus panel admin: daftar semua pengguna & ubah profil pengguna.
+// Rules mengizinkan keduanya hanya untuk role "admin".
+export async function getAllUsers() {
+  const snap = await getDocs(collection(db, "users"));
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+}
+
+export async function adminUpdateUser(uid, fields) {
+  await updateDoc(doc(db, "users", uid), fields);
+}
+
 /* ============================================================
    PROGRAM DEMO DOSEN — satu kode, banyak dosen, ruang terpisah.
    ============================================================ */
